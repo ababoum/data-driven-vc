@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    ports:
+      - "21001:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - HARMONIC_API_KEY=${HARMONIC_API_KEY}
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY}
+      - PREDICTLEADS_API_TOKEN=${PREDICTLEADS_API_TOKEN}
+      - PREDICTLEADS_API_KEY=${PREDICTLEADS_API_KEY}
+    volumes:
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "21002:80"
+    environment:
+      - NODE_ENV=development
+
+networks:
+  default:
+    driver: bridge

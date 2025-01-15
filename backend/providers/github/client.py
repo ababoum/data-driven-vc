@@ -3,7 +3,7 @@ from pathlib import Path
 from string import Template
 import httpx
 
-from backend.providers.github.utils import extract_nested_fields
+from providers.github.utils import extract_nested_fields
 
 
 class GitHubClient:
