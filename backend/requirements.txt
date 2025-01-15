@@ -13,3 +13,4 @@ urllib3==2.3.0
 openai==1.59.7
 firecrawl-py==1.9.0
 httpx
+numpy
