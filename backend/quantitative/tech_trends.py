@@ -62,7 +62,6 @@ def analyze_visits(response_json):
 
 def get_trends(tech_name):
     tech_url = find_url_for_keyword(tech_name)
-    print(tech_url)
     domain = url_to_domain(tech_url)
     start_date = (datetime.datetime.now() -
                   datetime.timedelta(days=395)).strftime("%Y-%m")
@@ -75,7 +74,8 @@ def get_trends(tech_name):
         "Accept": "application/json"
     }
     response = requests.get(url, headers=headers)
-    return analyze_visits(response.json())
+    analysis = analyze_visits(response.json())
+    return {"last_month_visits" : analysis[0], "trend": analysis[1]}
 
 
 if __name__ == "__main__":

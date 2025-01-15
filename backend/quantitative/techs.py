@@ -1,13 +1,17 @@
+from tech_trends import get_trends
+import google.generativeai as genai
 import json
 import requests
 import dotenv
 import os
+import openai
 
 dotenv.load_dotenv()
 PL_AUTH_KEY = os.getenv("PL_AUTH_KEY")
 PL_AUTH_TOKEN = os.getenv("PL_AUTH_TOKEN")
 HARMONIC_API_KEY = os.getenv("HARMONIC_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 
 def pl_get_company(domain_name):
@@ -74,17 +78,11 @@ def pl_get_tech_name(tech_id):
 
 
 def oa_sum_technologies(techs: list):
+    openai.api_key = OPENAI_API_KEY
 
-    url = "https://api.openai.com/v1/chat/completions"
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {OPENAI_API_KEY}"
-    }
-
-    data = {
-        "model": "gpt-3.5-turbo",
-        "messages": [
+    response = openai.ChatCompletion.create(
+        model="gpt-4o-mini",
+        messages=[
             {
                 "role": "system",
                 "content": "You are a helpful assistant, that knows a lot of technologies used by startups."
@@ -94,8 +92,7 @@ def oa_sum_technologies(techs: list):
                 "content": f"Pick 5 main technologies from the ones listed below. Return the keywords separated by a comma and nothing else. Here are the technologies: {techs}"
             }
         ]
-    }
-    response = requests.post(url, headers=headers, json=data)
+    )
 
     # Check if the request was successful
     if response.status_code == 200:
@@ -104,23 +101,52 @@ def oa_sum_technologies(techs: list):
         print("Error:", response.status_code, response.text)
 
 
+genai.configure(api_key=GEMINI_API_KEY)
+
+generation_config = {
+    "temperature": 1,
+    "top_p": 0.95,
+    "top_k": 40,
+    "max_output_tokens": 8192,
+    "response_mime_type": "text/plain",
+}
+
+model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash",
+    generation_config=generation_config,
+)
+
+
+def gem_sum_technologies(techs: list):
+    chat_session = model.start_chat(
+        history=[]
+    )
+
+    response = chat_session.send_message(
+        f"Pick 5 main technologies from the ones listed below. Return the keywords separated by a comma and nothing else. Here are the technologies: {
+            techs}"
+    )
+    print("Gemini:", response.text)
+    return response.text
+
+
 def get_techs(domain_name):
     ret = dict()
     h_company = h_get_company(domain_name)
     pl_company = pl_get_company(domain_name)["data"][0]["attributes"]
-    
+
     ret["company_name"] = pl_company["company_name"]
     ret["title"] = pl_company["meta_title"]
     ret["description"] = pl_company["meta_description"]
     ret["main_techs"] = []
-    
+
     for item in h_company["tags_v2"]:
         if item["type"] == "TECHNOLOGY_TYPE":
             ret["main_techs"].append(item["display_value"])
     for item in h_company["tags"]:
         if item["type"] == "TECHNOLOGY":
             ret["main_techs"].append(item["display_value"])
-            
+
     ret["specific_techs"] = []
     techs = pl_get_technologies(domain_name)
     tech_names = []
@@ -129,15 +155,27 @@ def get_techs(domain_name):
     for tech_id in tech_ids:
         tech_name = pl_get_tech_name(tech_id)
         tech_names.append(tech_name["data"][0]["attributes"]["name"])
-    
-    ret["specific_techs"] = oa_sum_technologies(tech_names).split(", ")
-    return json.dumps(ret)
+
+    ret["specific_techs"] = gem_sum_technologies(tech_names).split(",")
+    return ret
+
+def get_all_techs_with_trends(domain_name):
+    techs_list = get_techs(domain_name)
+    specific_techs = techs_list["specific_techs"]
+    techs_list["specific_techs"] = list()
+    for tech in specific_techs:
+        techs_list["specific_techs"] += [{"name": tech, "stats" : get_trends(tech)}]
+    return json.dumps(techs_list)
     
 
 if __name__ == "__main__":
+    
+    print(get_all_techs_with_trends("stripe.com"))
+    exit()
+    
     try:
         domain = "stripe.com"
-        
+
         print(get_techs(domain))
         exit()
 
