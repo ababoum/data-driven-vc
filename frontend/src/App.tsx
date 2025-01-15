@@ -1,18 +1,15 @@
 import { useState, useEffect } from 'react'
-import { Container, Typography, Box, CssBaseline, ThemeProvider, createTheme, TextField, Alert, Button, CircularProgress, Paper } from '@mui/material'
-import { analyzeDomain, getJobStatus } from './services/api'
-
-const theme = createTheme({
-  palette: {
-    mode: 'light',
-    background: {
-      default: '#FAFAF0',
-    },
-    primary: {
-      main: '#4A4A4A',
-    },
-  },
-})
+import { Container, Typography, Box, CssBaseline, ThemeProvider, createTheme, TextField, Alert, Button, CircularProgress, Paper, IconButton, useMediaQuery } from '@mui/material'
+import StarOutlineIcon from '@mui/icons-material/StarOutline'
+import Brightness4Icon from '@mui/icons-material/Brightness4'
+import Brightness7Icon from '@mui/icons-material/Brightness7'
+import { analyzeDomain, getJobStatus, summarizeStep } from './services/api'
+import Markdown from 'react-markdown'
+import rehypeKatex from 'rehype-katex'
+import remarkMath from 'remark-math'
+import remarkGfm from 'remark-gfm'
+import 'katex/dist/katex.min.css'
+import './styles/github-markdown.css'
 
 interface JobResult {
   domain: string;
@@ -32,7 +29,69 @@ interface StepData {
   [key: string]: any;
 }
 
+function formatStepDataToMarkdown(data: StepData): string {
+  const stepTitles: { [key: number]: string } = {
+    1: "Company Informations",
+    2: "Founders",
+    3: "Company Details",
+    4: "Competitors",
+    5: "Key People",
+    6: "Market Analysis",
+    7: "Financial Assessment",
+    8: "Market Sentiment",
+    9: "Competitive Analysis",
+    10: "Final Scoring"
+  };
+
+  let markdown = `## ${stepTitles[data.step] || 'Analysis Step'}\n\n`;
+
+  Object.entries(data)
+    .filter(([key]) => key !== 'step')
+    .forEach(([key, value]) => {
+      const formattedKey = key.split('_').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1)
+      ).join(' ');
+
+      if (Array.isArray(value)) {
+        markdown += `### ${formattedKey}\n`;
+        value.forEach((item: any) => {
+          markdown += `- ${item}\n`;
+        });
+        markdown += '\n';
+      } else {
+        markdown += `### ${formattedKey}\n${value}\n\n`;
+      }
+    });
+
+  return markdown;
+}
+
 function App() {
+  const [mode, setMode] = useState<'light' | 'dark'>('dark');
+
+  const theme = createTheme({
+    palette: {
+      mode,
+      background: {
+        default: mode === 'dark' ? '#0d1117' : '#FAFAF0',
+        paper: mode === 'dark' ? '#161b22' : '#ffffff',
+      },
+      primary: {
+        main: mode === 'dark' ? '#58a6ff' : '#4A4A4A',
+      },
+      text: {
+        primary: mode === 'dark' ? '#c9d1d9' : '#24292f',
+        secondary: mode === 'dark' ? '#8b949e' : '#57606a',
+      },
+    },
+  });
+
+  const toggleColorMode = () => {
+    setMode(prevMode => prevMode === 'light' ? 'dark' : 'light');
+  };
+
+  const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
+
   const [searchValue, setSearchValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [analyzedDomain, setAnalyzedDomain] = useState<string | null>(null)
@@ -40,6 +99,8 @@ function App() {
   const [jobStatus, setJobStatus] = useState<string | null>(null)
   const [jobResult, setJobResult] = useState<JobResult | null>(null)
   const [stepHistory, setStepHistory] = useState<StepData[]>([])
+  const [stepSummaries, setStepSummaries] = useState<{ [key: number]: string }>({});
+  const [loadingSteps, setLoadingSteps] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     let intervalId: number | null = null;
@@ -72,8 +133,8 @@ function App() {
     };
 
     if (currentJobId) {
-      intervalId = window.setInterval(pollJob, 1000); // Polling every second
-      pollJob(); // Initial poll
+      intervalId = window.setInterval(pollJob, 1000);
+      pollJob();
     }
 
     return () => {
@@ -89,6 +150,8 @@ function App() {
       setJobResult(null);
       setJobStatus(null);
       setStepHistory([]);
+      setStepSummaries({});
+      setLoadingSteps(new Set());
       
       if (searchValue.trim()) {
         const response = await analyzeDomain(searchValue.trim());
@@ -110,21 +173,32 @@ function App() {
     setJobStatus(null);
     setJobResult(null);
     setStepHistory([]);
+    setStepSummaries({});
+    setLoadingSteps(new Set());
+  };
+
+  const handleSummarize = async (stepData: StepData) => {
+    try {
+      setLoadingSteps(prev => new Set(prev).add(stepData.step));
+      const response = await summarizeStep(stepData);
+      setStepSummaries(prev => ({
+        ...prev,
+        [stepData.step]: response.summary
+      }));
+    } catch (err) {
+      setError('Failed to generate summary');
+    } finally {
+      setLoadingSteps(prev => {
+        const next = new Set(prev);
+        next.delete(stepData.step);
+        return next;
+      });
+    }
   };
 
   const renderStepData = (data: StepData) => {
-    const stepTitles: { [key: number]: string } = {
-      1: "Company Verification",
-      2: "Market Analysis",
-      3: "Financial Assessment",
-      4: "Team Analysis",
-      5: "Technology Stack",
-      6: "Growth Metrics",
-      7: "Risk Assessment",
-      8: "Market Sentiment",
-      9: "Competitive Analysis",
-      10: "Final Scoring"
-    };
+    const hasSummary = stepSummaries[data.step] !== undefined;
+    const isLoading = loadingSteps.has(data.step);
 
     return (
       <Paper 
@@ -135,28 +209,73 @@ function App() {
           borderRadius: 2,
           opacity: 1,
           transform: 'translateY(0)',
-          transition: 'opacity 0.5s ease, transform 0.5s ease',
+          transition: 'all 0.5s ease',
+          backgroundColor: theme.palette.background.paper,
+          border: `1px solid ${mode === 'dark' ? '#30363d' : '#e1e4e8'}`,
           '&:new': {
             opacity: 0,
             transform: 'translateY(20px)',
           }
         }}
       >
-        <Typography variant="h6" gutterBottom color="primary">
-          Step {data.step}: {stepTitles[data.step]}
-        </Typography>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          {Object.entries(data)
-            .filter(([key]) => key !== 'step')
-            .map(([key, value]) => (
-              <Box key={key} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography sx={{ textTransform: 'capitalize', color: 'text.secondary' }}>
-                  {key.split('_').join(' ')}:
-                </Typography>
-                <Typography sx={{ fontWeight: 'bold' }}>{value}</Typography>
-              </Box>
-            ))}
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+          {!hasSummary && (
+            <IconButton 
+              onClick={() => handleSummarize(data)}
+              color="primary"
+              disabled={isLoading}
+              sx={{ 
+                transition: 'transform 0.2s ease',
+                '&:hover': {
+                  transform: 'scale(1.1)',
+                }
+              }}
+            >
+              {isLoading ? <CircularProgress size={24} /> : <StarOutlineIcon />}
+            </IconButton>
+          )}
         </Box>
+
+        <div className="markdown-body max-w-2xl w-full overflow-x-hidden">
+          <style>{`
+            .katex-display {
+              display: block;
+              overflow-x: auto;
+              max-width: 100%;
+              white-space: nowrap;
+            }
+          `}</style>
+
+          <Markdown
+            components={{
+              ol: ({ ...props }) => <ol style={{ listStyle: "revert" }} {...props} />,
+              ul: ({ ...props }) => <ul style={{ listStyle: "revert" }} {...props} />,
+            }}
+            remarkPlugins={[remarkMath, remarkGfm]}
+            rehypePlugins={[rehypeKatex]}
+          >
+            {formatStepDataToMarkdown(data)}
+          </Markdown>
+        </div>
+
+        {hasSummary && (
+          <Box sx={{ 
+            mt: 3, 
+            p: 2, 
+            borderRadius: 1,
+            backgroundColor: mode === 'dark' ? 'rgba(88, 166, 255, 0.1)' : 'rgba(25, 118, 210, 0.08)',
+          }}>
+            <Typography variant="h6" gutterBottom color="primary">
+              Summary
+            </Typography>
+            <Markdown
+              remarkPlugins={[remarkMath, remarkGfm]}
+              rehypePlugins={[rehypeKatex]}
+            >
+              {stepSummaries[data.step]}
+            </Markdown>
+          </Box>
+        )}
       </Paper>
     );
   };
@@ -164,6 +283,49 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
+      <style>{`
+        .markdown-body {
+          color: ${theme.palette.text.primary} !important;
+          background-color: transparent !important;
+        }
+        .markdown-body h1,
+        .markdown-body h2,
+        .markdown-body h3,
+        .markdown-body h4,
+        .markdown-body h5,
+        .markdown-body h6 {
+          color: ${theme.palette.text.primary} !important;
+          border-bottom-color: ${mode === 'dark' ? '#30363d' : '#e1e4e8'} !important;
+        }
+        .markdown-body a {
+          color: ${mode === 'dark' ? '#58a6ff' : '#0969da'} !important;
+        }
+        .markdown-body hr {
+          background-color: ${mode === 'dark' ? '#30363d' : '#e1e4e8'} !important;
+        }
+        .markdown-body blockquote {
+          color: ${theme.palette.text.secondary} !important;
+          border-left-color: ${mode === 'dark' ? '#30363d' : '#e1e4e8'} !important;
+        }
+        .markdown-body table tr {
+          background-color: ${theme.palette.background.paper} !important;
+          border-color: ${mode === 'dark' ? '#30363d' : '#e1e4e8'} !important;
+        }
+        .markdown-body table tr:nth-child(2n) {
+          background-color: ${mode === 'dark' ? '#161b22' : '#f6f8fa'} !important;
+        }
+        .markdown-body table th,
+        .markdown-body table td {
+          border-color: ${mode === 'dark' ? '#30363d' : '#e1e4e8'} !important;
+        }
+        .markdown-body code {
+          background-color: ${mode === 'dark' ? 'rgba(110,118,129,0.4)' : 'rgba(175,184,193,0.2)'} !important;
+          color: ${theme.palette.text.primary} !important;
+        }
+        .markdown-body pre code {
+          background-color: transparent !important;
+        }
+      `}</style>
       <Box
         sx={{
           display: 'flex',
@@ -171,7 +333,7 @@ function App() {
           minWidth: '100vw',
           alignItems: analyzedDomain ? 'flex-start' : 'center',
           justifyContent: 'center',
-          backgroundColor: '#FAFAF0',
+          backgroundColor: theme.palette.background.default,
           position: 'fixed',
           top: 0,
           left: 0,
@@ -182,11 +344,27 @@ function App() {
           overflowY: 'auto'
         }}
       >
+        <IconButton
+          onClick={toggleColorMode}
+          sx={{
+            position: 'fixed',
+            top: 16,
+            left: 16,
+            backgroundColor: theme.palette.background.paper,
+            border: `1px solid ${mode === 'dark' ? '#30363d' : '#e1e4e8'}`,
+            '&:hover': {
+              backgroundColor: mode === 'dark' ? 'rgba(88, 166, 255, 0.1)' : 'rgba(74, 74, 74, 0.1)',
+            },
+          }}
+        >
+          {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
+        </IconButton>
+
         <Container maxWidth="lg">
           <Box sx={{ textAlign: 'center', position: 'relative' }}>
             {!analyzedDomain ? (
               <>
-                <Typography variant="h2" component="h1" gutterBottom sx={{ fontWeight: 'bold', color: '#4A4A4A' }}>
+                <Typography variant="h2" component="h1" gutterBottom sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>
                   Startech VC
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', maxWidth: '600px', margin: '0 auto' }}>
@@ -202,14 +380,14 @@ function App() {
                       }
                     }}
                     sx={{
-                      backgroundColor: '#FFFFFF',
+                      backgroundColor: theme.palette.background.paper,
                       borderRadius: 1,
                       '& .MuiOutlinedInput-root': {
                         '& fieldset': {
-                          borderColor: '#4A4A4A',
+                          borderColor: theme.palette.text.primary,
                         },
                         '&:hover fieldset': {
-                          borderColor: '#4A4A4A',
+                          borderColor: theme.palette.text.primary,
                         },
                       },
                     }}
@@ -220,9 +398,9 @@ function App() {
                     sx={{
                       height: '56px',
                       minWidth: '100px',
-                      backgroundColor: '#4A4A4A',
+                      backgroundColor: theme.palette.primary.main,
                       '&:hover': {
-                        backgroundColor: '#2A2A2A',
+                        backgroundColor: mode === 'dark' ? '#1f6feb' : '#2A2A2A',
                       },
                     }}
                   >
@@ -237,11 +415,11 @@ function App() {
                     variant="outlined"
                     onClick={handleReset}
                     sx={{
-                      borderColor: '#4A4A4A',
-                      color: '#4A4A4A',
+                      borderColor: theme.palette.text.primary,
+                      color: theme.palette.text.primary,
                       '&:hover': {
-                        borderColor: '#2A2A2A',
-                        backgroundColor: 'rgba(74, 74, 74, 0.1)',
+                        borderColor: theme.palette.text.secondary,
+                        backgroundColor: mode === 'dark' ? 'rgba(88, 166, 255, 0.1)' : 'rgba(74, 74, 74, 0.1)',
                       },
                     }}
                   >
@@ -249,7 +427,7 @@ function App() {
                   </Button>
                 </Box>
                 <Box sx={{ mt: 0, mb: 4 }}>
-                  <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', color: '#4A4A4A' }}>
+                  <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>
                     {analyzedDomain}
                   </Typography>
                 </Box>
@@ -266,32 +444,24 @@ function App() {
                 </Box>
                 {jobResult && (
                   <Box sx={{ mt: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <Typography variant="h5" component="h2">Final Analysis</Typography>
+                    <Typography variant="h5" component="h2" color="text.primary">Final Analysis</Typography>
                     <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
-                      <Paper sx={{ p: 3, borderRadius: 2 }}>
-                        <Typography variant="h4" gutterBottom>{jobResult.metrics.score}</Typography>
-                        <Typography variant="subtitle1">Overall Score</Typography>
-                      </Paper>
-                      <Paper sx={{ p: 3, borderRadius: 2 }}>
-                        <Typography variant="h4" gutterBottom>{jobResult.metrics.potential}</Typography>
-                        <Typography variant="subtitle1">Potential</Typography>
-                      </Paper>
-                      <Paper sx={{ p: 3, borderRadius: 2 }}>
-                        <Typography variant="h4" gutterBottom>{jobResult.metrics.market_size}</Typography>
-                        <Typography variant="subtitle1">Market Size</Typography>
-                      </Paper>
-                      <Paper sx={{ p: 3, borderRadius: 2 }}>
-                        <Typography variant="h4" gutterBottom>{jobResult.metrics.company_age}</Typography>
-                        <Typography variant="subtitle1">Company Age</Typography>
-                      </Paper>
-                      <Paper sx={{ p: 3, borderRadius: 2 }}>
-                        <Typography variant="h4" gutterBottom>{jobResult.metrics.market_position}</Typography>
-                        <Typography variant="subtitle1">Market Position</Typography>
-                      </Paper>
-                      <Paper sx={{ p: 3, borderRadius: 2 }}>
-                        <Typography variant="h4" gutterBottom>{jobResult.metrics.recommendation}</Typography>
-                        <Typography variant="subtitle1">Recommendation</Typography>
-                      </Paper>
+                      {Object.entries(jobResult.metrics).map(([key, value]) => (
+                        <Paper 
+                          key={key} 
+                          sx={{ 
+                            p: 3, 
+                            borderRadius: 2,
+                            backgroundColor: theme.palette.background.paper,
+                            border: `1px solid ${mode === 'dark' ? '#30363d' : '#e1e4e8'}`,
+                          }}
+                        >
+                          <Typography variant="h4" gutterBottom color="text.primary">{value}</Typography>
+                          <Typography variant="subtitle1" color="text.secondary">
+                            {key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                          </Typography>
+                        </Paper>
+                      ))}
                     </Box>
                   </Box>
                 )}

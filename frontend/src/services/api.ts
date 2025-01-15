@@ -39,4 +39,14 @@ export const getJobStatus = async (jobId: string) => {
   }
 };
 
+export const summarizeStep = async (stepData: any) => {
+  try {
+    const response = await api.post('/summarize-step', { step_data: stepData });
+    return response.data;
+  } catch (error) {
+    console.error('API Error:', error);
+    throw error;
+  }
+};
+
 export default api; 
