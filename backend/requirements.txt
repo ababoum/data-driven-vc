@@ -1,2 +1,10 @@
-requests=2.32.3
-python-dotenv=1.0.1
+fastapi==0.104.1
+uvicorn==0.24.0
+python-dotenv==1.0.0
+pydantic==2.5.2
+sqlalchemy==2.0.23
+python-multipart==0.0.6
+pytest==7.4.3
+openai==1.59.7
+firecrawl-py==1.9.0
+httpx
