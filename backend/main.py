@@ -26,7 +26,7 @@ class JobStatus(BaseModel):
     step_history: List[dict] = []
 
 # Initialize OpenAI client
-client = OpenAI(api_key="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")
+client = OpenAI(api_key="")
 
 # In-memory job store
 jobs: Dict[str, JobStatus] = {}
