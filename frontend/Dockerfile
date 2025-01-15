@@ -4,6 +4,10 @@ FROM node:20 AS build
 # Set the working directory
 WORKDIR /app
 
+# Define build argument
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
 # Copy package.json and package-lock.json
 COPY package*.json ./
 
