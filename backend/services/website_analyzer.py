@@ -62,7 +62,6 @@ class WebsiteAnalyzer:
         return json.loads(content).get('technologies')
 
 
-# Main function to run the entire process
 async def main():
     website_url = 'https://twenty.com/'
 
@@ -75,7 +74,6 @@ async def main():
     print(await analyzer.extract_technologies())
 
 
-# Run the main function
 if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
