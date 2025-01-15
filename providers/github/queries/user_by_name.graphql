@@ -1,0 +1,81 @@
+query {
+  repositoryOwner(login: "$login") {
+    ...UserFragment
+    ...OrgFragment
+  }
+}
+
+fragment UserFragment on User {
+  id
+  databaseId
+  websiteUrl
+  login
+  avatarUrl
+  __typename
+  isSiteAdmin
+  name
+  company
+  socialAccounts(first: 10) {
+    edges {
+      node {
+        url
+      }
+    }
+  }
+  location
+  email
+  isHireable
+  bio
+  twitterUsername
+  repositories(privacy:PUBLIC, ownerAffiliations:OWNER, orderBy:{field:STARGAZERS,direction:DESC}, first: 5) {
+    totalCount
+    edges {
+      node {
+        databaseId
+        stargazerCount
+        forkCount
+        homepageUrl
+      }
+    }
+  }
+  gists(privacy:PUBLIC) {
+    totalCount
+  }
+  followers {
+    totalCount
+  }
+  following {
+    totalCount
+  }
+
+  createdAt
+  updatedAt
+}
+
+fragment OrgFragment on Organization {
+  id
+  databaseId
+  websiteUrl
+  login
+  avatarUrl
+  __typename
+  name
+  location
+  email
+  twitterUsername
+  description
+  isVerified
+  repositories(privacy:PUBLIC, ownerAffiliations:OWNER, orderBy:{field:STARGAZERS,direction:DESC}, first: 5) {
+    totalCount
+    edges {
+      node {
+        databaseId
+        stargazerCount
+        forkCount
+        homepageUrl
+      }
+    }
+  }
+  createdAt
+  updatedAt
+}
