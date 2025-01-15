@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from string import Template
-import requests
+import httpx
 
 from backend.providers.github.utils import extract_nested_fields
 
@@ -16,16 +16,17 @@ class GitHubClient:
         with open(Path(__file__).resolve().parent / 'queries' / filename, 'r') as f:
             return f.read()
 
-    def run_query(self, query: str) -> dict:
-        response = requests.post(
-            self.base_url,
-            json={'query': query},
-            headers={
-                "Authorization": f"token {self.token}"
-            }
-        )
-        response.raise_for_status()
-        return response.json()
+    async def run_query(self, query: str) -> dict:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                self.base_url,
+                json={'query': query},
+                headers={
+                    "Authorization": f"token {self.token}"
+                }
+            )
+            response.raise_for_status()
+            return response.json()
 
     @staticmethod
     def _serialize_repo(raw_item: dict):
@@ -108,18 +109,17 @@ class GitHubClient:
         }
         return extract_nested_fields(raw_item, mapper)
 
-    def fetch_repo(self, full_name: str):
-        owner, name = full_name.split('/')
+    async def fetch_repo(self, owner: str, name: str):
         query = Template(self.get_query_from_file("repo_by_name.graphql")).substitute(
             owner=owner,
             name=name
         )
-        data = self.run_query(query)
+        data = await self.run_query(query)
         return self._serialize_repo(data['data']['repository'])
 
-    def fetch_user(self, username: str):
+    async def fetch_user(self, username: str):
         query = Template(self.get_query_from_file("user_by_name.graphql")).substitute(
             login=username
         )
-        data = self.run_query(query)
+        data = await self.run_query(query)
         return self._serialize_user(data['data']['repositoryOwner'])

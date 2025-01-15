@@ -33,7 +33,7 @@ class WebsiteAnalyzer:
             fmt_webpages += f"## {url}\n{markdown}\n\n"
         return fmt_webpages[:100000]
 
-    async def extract_technologies(self) -> list[str]:
+    async def extract_technologies(self) -> list[dict]:
         def build_prompt():
             prompt = (
                     "You are an AI assistant tasked with analyzing the content of a startup's website. "
