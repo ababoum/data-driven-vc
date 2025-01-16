@@ -13,8 +13,8 @@ from services.github_analyzer import GitHubAnalyzer
 from services.website_analyzer import WebsiteAnalyzer
 from cache import memorize
 from qualitative.founders import qualify_founder
-from quantitative.techs import get_all_techs_with_trends
-
+from quantitative.techs import get_all_techs_with_trends, get_techs
+from qualitative.short_tech_summary import generate_company_tech_summary
 class WebsiteAnalysisWorkflow:
     gh_report: str | None = None
     code_report: str | None = None
@@ -83,7 +83,7 @@ class WebsiteAnalysisWorkflow:
             importance_md += f"- **{formatted_metric}**: {value}% impact on the analysis\n"
 
         step_data = {
-            "step": 1,
+            "step": 4,
             "_title": "Competitors Analysis",
             "competitors": md_competitors,
             "overperformers": [company["name"] for company in outliers_good],
@@ -221,7 +221,7 @@ class WebsiteAnalysisWorkflow:
                 performance_comment = "Founding team shows some areas of concern that may need further evaluation"
 
             step_data = {
-                "step": 4,
+                "step": 1,
                 "_title": "Founder Analysis",
                 "founders": founders_md,
                 "_performance": performance,
@@ -261,7 +261,7 @@ class WebsiteAnalysisWorkflow:
 
         except Exception as e:
             return {
-                "step": 4,
+                "step": 1,
                 "_title": "Founder Analysis",
                 "founders": "Error analyzing founders",
                 "_performance": 0,
@@ -269,6 +269,21 @@ class WebsiteAnalysisWorkflow:
                 "calculation_explanation": str(e)
             }
             
+    @memorize()
+    async def generate_tech_summary_report(self) -> dict:
+        harmonic_client = HarmonicClient()
+        analyzer = WebsiteAnalyzer('https://' + self.domain)
+        await analyzer.crawl()
+        techs = await get_techs(self.domain)
+        summary = generate_company_tech_summary(company= await harmonic_client.find_company(self.domain), webpages=analyzer._webpages, domain=self.domain, main_techs=techs.get('main_techs'), specific_techs=techs.get('specific_techs'))
+        return {
+                "step": 0,
+                "_title": "Tech Summary",
+                "tech_summary": summary,
+                "_performance": 0,
+                "performance_comment": "Analysis failed",
+            }
+        
     @memorize()
     async def generate_tech_trends_report(self) -> dict:
         try:

@@ -2,14 +2,13 @@ from openai import OpenAI
 import json
 import os
 
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai_client = OpenAI()
 
 def wrap_triple_quotes(text: str):
     return f"```\n{text}\n```"
 
 def extract_relevant_pages_url(webpage_urls: list[str]):
     formatted_urls = '\n'.join([f"- {url}" for url in webpage_urls])
-    openai_client = OpenAI(api_key=openai_api_key)
     messages = [
         {"role": "developer", "content": "You are a VC analyst, your role is to investigate and rationalize an investment decision on a company. You will be feeded with a list of URLs of all the pages of the company website. Your task is to identify the most relevant url to extract information from. Knowing that those relevant urls will be used to extract information about the company, its founders, its team members, its product, its business and its underlying technologies."},
         {"role": "user", "content": f"""

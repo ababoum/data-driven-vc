@@ -54,16 +54,16 @@ async def process_domain(domain: str, job_id: str):
         workflow = WebsiteAnalysisWorkflow(domain)
         # Step 0: Tech Trends
         jobs[job_id].status = "Analyzing tech trends..."
-        step_data = await workflow.generate_tech_trends_report()
+        step_data = await workflow.generate_tech_summary_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
         
-        # Step 1: Competitors
-        jobs[job_id].status = "Analyzing competitors..."
-        step_data = await workflow.generate_competitors_report()
+        # Step 1: Founder Analysis
+        jobs[job_id].status = "Analyzing founders..."
+        step_data = await workflow.generate_founders_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
-
+        
         # Step 2: GitHub Analysis
         jobs[job_id].status = "Analyzing GitHub..."
         step_data = await workflow.generate_github_report()
@@ -76,9 +76,9 @@ async def process_domain(domain: str, job_id: str):
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
 
-        # Step 4: Founder Analysis
-        jobs[job_id].status = "Analyzing founders..."
-        step_data = await workflow.generate_founders_report()
+        # Step 4: Competitors
+        jobs[job_id].status = "Analyzing competitors..."
+        step_data = await workflow.generate_competitors_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
         
