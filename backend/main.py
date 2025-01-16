@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette import status
 
 from providers.harmonic.client import HarmonicClient
+from qualitative.founders import qualify_founder
 
 from models import DomainRequest, StepSummaryRequest, JobResponse, JobStatus
 from utils import get_gpt_summary
@@ -19,7 +20,9 @@ from workflow import WebsiteAnalysisWorkflow
 jobs: Dict[str, JobStatus] = {}
 
 
+load_dotenv("../.env", override=True)
 load_dotenv()
+
 app = FastAPI(title="Data Driven VC API")
 
 app.add_middleware(
@@ -48,8 +51,7 @@ def format_step_data(step_data: dict) -> str:
 
 async def process_domain(domain: str, job_id: str):
     try:
-        workflow = WebsiteAnalysisWorkflow(domain)
-
+        harmonic_client = HarmonicClient()
         # Step 1: Competitors
         jobs[job_id].status = "Analyzing competitors..."
         step_data = await workflow.generate_competitors_report()
@@ -69,11 +71,14 @@ async def process_domain(domain: str, job_id: str):
         jobs[job_id].step_history.append(step_data)
 
         # Step 4: Competitor Analysis
+
+        founders = await harmonic_client.get_founders_from_company(company)
+        founders_md = harmonic_client.format_founders_to_md(founders)
+        founder_1_background = qualify_founder(company, founders[1], OPENAI_API_KEY)
         step_data = {
             "step": 4,
-            "_title": "TODO",
-            "market_size": f"${random.randint(1, 100)}B",
-            "competitors": random.randint(5, 20),
+            "market_size": founders_md,
+            "competitors": str(founder_1_background),
             "market_growth": f"{random.randint(5, 30)}% YoY"
         }
         jobs[job_id].status = "Analyzing market position..."
@@ -86,7 +91,7 @@ async def process_domain(domain: str, job_id: str):
             "step": 5,
             "_title": "TODO",
             "market_size": f"${random.randint(1, 100)}B",
-            "competitors": random.randint(5, 20),
+            "competitors": founder_1_background,
             "market_growth": f"{random.randint(5, 30)}% YoY"
         }
         jobs[job_id].status = "Analyzing market position..."

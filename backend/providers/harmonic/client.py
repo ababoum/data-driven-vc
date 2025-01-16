@@ -124,31 +124,77 @@ class HarmonicClient:
             
         return md_output
     
-    def find_outliers(self, myself: dict, others: List[dict], contamination: float = 0.3) -> List[dict]:
+    def find_outliers(self, myself: dict, others: List[dict], contamination: float = 0.3) -> tuple[List[dict], dict]:
         """
-        Find outliers in a list of companies using Isolation Forest.
+        Find outliers in a list of companies using Isolation Forest and return feature importance.
         
         Args:
             myself (dict): The main company data
             others (List[dict]): List of other company data to compare against
+            contamination (float): The proportion of outliers in the dataset
             
         Returns:
-            List[dict]: List of companies identified as outliers
+            tuple[List[dict], dict]: Tuple containing:
+                - List of companies identified as outliers
+                - Dictionary of feature importance metrics
         """
-
         # Combine myself with others into one list
         all_companies = [myself] + others
+        
+        # Define features to analyze
+        feature_names = [
+            'headcount',
+            'funding_rounds_count',
+            'total_funding',
+            'last_funding',
+            'stage_score'
+        ]
+        
+        # Stage scoring mapping
+        stage_scores = {
+            'SEED': 1,
+            'SERIES_A': 2,
+            'SERIES_B': 3,
+            'SERIES_C': 4,
+            'SERIES_D': 5,
+            'SERIES_E': 6,
+            'IPO': 7,
+            'ACQUIRED': 8,
+            'UNKNOWN': 0
+        }
         
         # Extract numeric features for comparison
         features = []
         for company in all_companies:
             company_features = []
-            # Use headcount if available
-            headcount = company.get('headcount', 0)
-            company_features.append(float(headcount))
             
-            # Add other numeric features here as needed
-            # Example: funding amount, revenue, etc.
+            # Headcount
+            headcount = float(company.get('headcount', 0))
+            company_features.append(headcount)
+            
+            # Number of funding rounds
+            funding_rounds = len(company.get('funding_rounds', []))
+            company_features.append(float(funding_rounds))
+            
+            # Total funding amount
+            total_funding = sum(
+                round.get('amount', 0) 
+                for round in company.get('funding_rounds', [])
+            )
+            company_features.append(float(total_funding))
+            
+            # Last funding amount (most recent round)
+            last_funding = (
+                company.get('funding_rounds', [])[-1].get('amount', 0)
+                if company.get('funding_rounds')
+                else 0
+            )
+            company_features.append(float(last_funding))
+            
+            # Stage score
+            stage = company.get('stage', 'UNKNOWN')
+            stage_score = stage_scores.get(stage, 0)
+            company_features.append(float(stage_score))
             
             features.append(company_features)
             
@@ -156,17 +202,127 @@ class HarmonicClient:
         
         # Skip if not enough data points
         if len(features) < 2:
-            return []
+            return [], {}
             
         # Fit isolation forest
         iso_forest = IsolationForest(contamination=contamination, random_state=42)
         iso_forest.fit(features)
         outliers = iso_forest.predict(features)
         
-        # Return companies marked as outliers (-1)
+        # Calculate feature importance using decision paths
+        feature_importance = {}
+        
+        # For each feature, calculate its importance based on how often it's used in decision paths
+        for idx, feature_name in enumerate(feature_names):
+            # Calculate how often this feature is used in decision paths
+            feature_usage = np.sum([
+                1 for estimator in iso_forest.estimators_
+                if idx in estimator.tree_.feature
+            ])
+            feature_importance[feature_name] = feature_usage / len(iso_forest.estimators_)
+        
+        # Normalize feature importance
+        total_importance = sum(feature_importance.values())
+        if total_importance > 0:
+            feature_importance = {
+                k: round(v / total_importance * 100, 2)
+                for k, v in feature_importance.items()
+            }
+        
+        # Return companies marked as outliers (-1) and feature importance
         outlier_companies = []
         for idx, is_outlier in enumerate(outliers):
             if is_outlier == -1:
                 outlier_companies.append(all_companies[idx])
                 
-        return outlier_companies
+        return outlier_companies, feature_importance
+    
+    async def get_founders_from_company(self, company):
+        if 'people' not in company:
+            return []
+
+        people = company['people']
+        founder_urns = [person['person'] for person in people if 'role_type' in person and 'person' in person and person['role_type'] == 'FOUNDER']
+
+        return [await self.fetch_person(urn) for urn in founder_urns]
+
+    def format_founders_to_md(self, founders: List[Dict]) -> str:
+        """
+        Format founders' information into a markdown string.
+        
+        Args:
+            founders (List[Dict]): List of founder data dictionaries
+            
+        Returns:
+            str: Formatted markdown string
+        """
+        if not founders:
+            return "No founder information available."
+            
+        md_output = ""
+        
+        for founder in founders:
+            # Basic Info
+            md_output += f"## {founder.get('full_name', 'Unknown Founder')}\n\n"
+            
+            # Current Role
+            current_roles = [exp for exp in founder.get('experience', []) 
+                           if exp.get('is_current_position') and exp.get('company_name')]
+            if current_roles:
+                md_output += f"**Current Role:** {current_roles[0].get('title', 'Unknown')} at {current_roles[0].get('company_name', 'Unknown Company')}\n\n"
+            
+            # Education
+            if founder.get('education'):
+                md_output += "### Education\n"
+                # Sort education with a safe key function that handles None
+                sorted_education = sorted(
+                    founder['education'],
+                    key=lambda x: x.get('end_date') or '',
+                    reverse=True
+                )
+                for edu in sorted_education:
+                    school_name = edu.get('school', {}).get('name')
+                    degree = edu.get('degree')
+                    if school_name and degree:
+                        md_output += f"- {degree} from {school_name}"
+                        if edu.get('field'):
+                            md_output += f" in {edu['field']}"
+                        md_output += "\n"
+                md_output += "\n"
+            
+            # Previous Experience
+            md_output += "### Previous Experience\n"
+            founder_exp = [exp for exp in founder.get('experience', []) 
+                          if not exp.get('is_current_position') and exp.get('company_name')]
+            # Sort experience with a safe key function that handles None
+            sorted_exp = sorted(
+                founder_exp,
+                key=lambda x: x.get('start_date') or '',
+                reverse=True
+            )
+            for exp in sorted_exp[:3]:  # Show only top 3 previous roles
+                md_output += f"- {exp.get('title', 'Unknown Role')} at {exp.get('company_name', 'Unknown Company')}"
+                if exp.get('description'):
+                    # Safely get the first sentence
+                    description = exp['description'].split('.')
+                    if description:
+                        md_output += f"\n  - {description[0]}"
+                md_output += "\n"
+            md_output += "\n"
+            
+            # Highlights
+            if founder.get('highlights'):
+                md_output += "### Highlights\n"
+                for highlight in founder['highlights']:
+                    if highlight.get('text'):
+                        md_output += f"- {highlight['text']}\n"
+                md_output += "\n"
+            
+            # Location
+            location = founder.get('location', {}).get('location')
+            if location:
+                md_output += f"**Location:** {location}\n\n"
+            
+            md_output += "---\n\n"
+            
+        return md_output

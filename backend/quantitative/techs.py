@@ -1,5 +1,5 @@
-from tech_trends import get_trends
-import google.generativeai as genai
+from .tech_trends import get_trends
+#import google.generativeai as genai
 import json
 import os
 
