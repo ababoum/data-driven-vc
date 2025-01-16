@@ -12,13 +12,14 @@ from services.code_analyzer import CodeQualityAnalyzer
 from services.github_analyzer import GitHubAnalyzer
 from services.website_analyzer import WebsiteAnalyzer
 from cache import memorize
-
+from qualitative.founders import qualify_founder
 
 class WebsiteAnalysisWorkflow:
     gh_report: str | None = None
     code_report: str | None = None
     employees_experience: list[dict] | None = None
     technologies: list[dict] | None = None
+    founders_report: str | None = None
 
     def __init__(self, input_string: str):
         self.domain = self._extract_domain(input_string)
@@ -180,6 +181,93 @@ class WebsiteAnalysisWorkflow:
                 "performance_comment": "Analysis failed"
             }
 
+    @memorize()
+    async def generate_founders_report(self) -> dict:
+        try:
+            harmonic_client = HarmonicClient()
+            company = await harmonic_client.find_company(self.domain)
+            founders = await harmonic_client.get_founders_from_company(company)
+            founders_backgrounds = []
+            for founder in founders:
+                founder_background = qualify_founder(company, founder)
+                founders_backgrounds.append(founder_background)
+            founders_md = harmonic_client.format_founders_to_md(founders, founders_backgrounds)
+
+            # Calculate performance based on founders' sentiments
+            sentiment_scores = {
+                'outstanding': 1,
+                'positive': 0.5, 
+                'neutral': 0,
+                'negative': -0.5,
+                'concerning': -1
+            }
+
+            total_score = 0
+            for background in founders_backgrounds:
+                if background and background.get('global', {}).get('sentiment'):
+                    total_score += sentiment_scores.get(background['global']['sentiment'].lower(), 0)
+
+            # Calculate average and determine performance
+            avg_score = total_score / len(founders_backgrounds) if founders_backgrounds else 0
+            performance = 1 if avg_score > 0.5 else (-1 if avg_score < -0.25 else 0)
+
+            # Generate performance comment based on score
+            if performance == 1:
+                performance_comment = "Exceptional founding team with outstanding backgrounds and highly relevant experience"
+            elif performance == 0:
+                performance_comment = "Solid founding team with good experience and relevant backgrounds"
+            else:
+                performance_comment = "Founding team shows some areas of concern that may need further evaluation"
+
+            step_data = {
+                "step": 4,
+                "_title": "Founder Analysis",
+                "founders": founders_md,
+                "_performance": performance,
+                "performance_comment": performance_comment,
+                "calculation_explanation": """The founder analysis is performed through a comprehensive evaluation of multiple factors:
+
+1. Overall Assessment:
+   - Each founder's background is analyzed for their experience, education, and achievements
+   - Sentiment analysis is performed on their background (Outstanding, Positive, Neutral, Negative, or Concerning)
+   - The analysis considers the relevance of their experience to the current venture
+
+2. Educational Background:
+   - Quality and prestige of educational institutions
+   - Relevance of degrees to the company's domain
+   - Additional certifications and specialized training
+
+3. Professional Experience:
+   - Previous founding experience and exits
+   - Industry-relevant positions and achievements
+   - Leadership roles and responsibilities
+   - Track record of success in similar domains
+
+4. Final Score Calculation:
+   - Each founder's sentiment is converted to a numerical score:
+     * Outstanding = 1.0
+     * Positive = 0.5
+     * Neutral = 0.0
+     * Negative = -0.5
+     * Concerning = -1.0
+   - The average score across all founders determines the final performance:
+     * High Performance (Green): Average score > 0.5
+     * Average Performance (Yellow): Average score between -0.25 and 0.5
+     * Concerning Performance (Red): Average score < -0.25"""
+            }
+            self.founders_report = step_data
+            return step_data
+
+        except Exception as e:
+            return {
+                "step": 4,
+                "_title": "Founder Analysis",
+                "founders": "Error analyzing founders",
+                "_performance": 0,
+                "performance_comment": "Analysis failed",
+                "calculation_explanation": str(e)
+            }
+
     async def fetch_employees_experience(self):
         print('Fetching employees experience...')
         client = HarmonicClient()
@@ -253,7 +341,7 @@ Make sure to use **clear, non-technical language** suitable for VC associates wh
 --- 
 
 **Output Format:**  
-- The memo should be formatted with headers, bullet points, and concise paragraphs for readability.
+- The memo should be formatted in .md format with headers, bullet points, and concise paragraphs for readability.
 - Each section should be no longer than 1-2 paragraphs to maintain brevity and clarity.
             """
             prompt += f"\n\n"
@@ -269,6 +357,9 @@ Make sure to use **clear, non-technical language** suitable for VC associates wh
                 # TODO: Improve formatting
                 fmt_employees_experience = json.dumps(self.employees_experience, indent=2, default=str)
                 prompt += f"### Employees Data:\n{fmt_employees_experience}\n\n"
+            # add step 4 data
+            if self.founders_report:
+                prompt += f"### Founders Data:\n{self.founders_report}\n\n"
             return prompt
 
         print()
@@ -286,8 +377,14 @@ Make sure to use **clear, non-technical language** suitable for VC associates wh
             if chunk.choices[0].delta.content:
                 response_text += chunk.choices[0].delta.content
         print('Generated memo')
-        return response_text
-
+        
+        return {
+                "step": 5,
+                "_title": "Memo of the entire analysis",
+                "memo": response_text,
+                "calculation_explanation": "This memo was generated using ChatGPT-4o"
+            }
+        
     async def run_analysis(self):
         print('Starting analysis...')
         domain = self.domain
