@@ -246,11 +246,7 @@ class HarmonicClient:
 
         return [await self.fetch_person(urn) for urn in founder_urns]
 
-<<<<<<< HEAD
     def format_founders_to_md(self, founders: List[dict], founders_backgrounds: List[dict]) -> str:
-=======
-    def format_founders_to_md(self, founders: list[dict]) -> str:
->>>>>>> 34f2ee2302537c8f5a306b43124d41706c6003ce
         """
         Format founders' information into a markdown string.
         
