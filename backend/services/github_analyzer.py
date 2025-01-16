@@ -103,6 +103,7 @@ class GitHubAnalyzer:
             self._report = "No GitHub repository found."
             return
 
+        # TODO: Add additional metrics
         stars_rate = await self.get_stars_growth_rate()
         forks_rate = await self.get_forks_rate()
         commit_rate = await self.get_commit_frequency_rate()
@@ -118,10 +119,6 @@ class GitHubAnalyzer:
             self._color = 1
 
         report = f"""
-# GitHub Repository Analysis Report: {self.owner}/{self.repo}
-
-## Metrics
-
 - **Stars Growth Rate:** {stars_rate}/10
 - **Forks Rate:** {forks_rate}/10
 - **Commit Frequency Rate:** {commit_rate}/10

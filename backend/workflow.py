@@ -173,7 +173,7 @@ class WebsiteAnalysisWorkflow:
             }
             return step_data
             
-        except Exception as e:
+        except Exception:
             return {
                 "step": 3,
                 "_title": "Code Quality Analysis",
@@ -277,13 +277,12 @@ class WebsiteAnalysisWorkflow:
         techs = await get_techs(self.domain)
         summary = generate_company_tech_summary(company= await harmonic_client.find_company(self.domain), webpages=analyzer._webpages, domain=self.domain, main_techs=techs.get('main_techs'), specific_techs=techs.get('specific_techs'))
         return {
-                "step": 0,
-                "_title": "Tech Summary",
-                "tech_summary": summary,
-                "_performance": 0,
-                "performance_comment": "Analysis failed",
-            }
-        
+            "step": 0,
+            "_title": "Tech Summary",
+            "tech_summary": summary,
+            "performance_comment": "",
+        }
+
     @memorize()
     async def generate_tech_trends_report(self) -> dict:
         try:
@@ -434,10 +433,6 @@ Make sure to use **clear, non-technical language** suitable for VC associates wh
                 prompt += f"### Founders Data:\n{self.founders_report}\n\n"
             return prompt
 
-        print()
-        print(build_prompt())
-        print()
-
         openai_client = AsyncOpenAI()
         response = await openai_client.chat.completions.create(
             model="gpt-4o-mini",
@@ -460,8 +455,6 @@ Make sure to use **clear, non-technical language** suitable for VC associates wh
     async def run_analysis(self):
         print('Starting analysis...')
         domain = self.domain
-        # Fetch GitHub data
-        await self.fetch_github_data()
         # Fetch Harmonic data
         await self.fetch_employees_experience()
         # Analyze website

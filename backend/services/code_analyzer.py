@@ -70,6 +70,8 @@ class CodeQualityAnalyzer:
 
     def assess_code(self, code_snippet: str) -> str:
         """Sends code to GPT-4 mini model for assessment."""
+
+        # TODO: Improve prompt to be more specific
         response = OpenAI().chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -77,7 +79,7 @@ class CodeQualityAnalyzer:
                     "role": "system",
                     "content": (
                         "You are an assistant tasked with assessing code quality. "
-                        "Rate the code from 1 to 10 and provide a short 1 paragraph explanation for the rating."
+                        "Rate the code from 1 to 10 and provide a short explanation for the rating. Use bullet points."
                     )
                 },
                 {

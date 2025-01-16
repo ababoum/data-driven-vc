@@ -1,16 +1,11 @@
 import asyncio
-import random
 import uuid
-from datetime import datetime
 from typing import Dict
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette import status
-
-from providers.harmonic.client import HarmonicClient
-from qualitative.founders import qualify_founder
 
 from models import DomainRequest, StepSummaryRequest, JobResponse, JobStatus
 from utils import get_gpt_summary
@@ -54,41 +49,47 @@ async def process_domain(domain: str, job_id: str):
         workflow = WebsiteAnalysisWorkflow(domain)
         # Step 0: Tech Trends
         jobs[job_id].status = "Analyzing tech trends..."
+        # await asyncio.sleep(1.0)
         step_data = await workflow.generate_tech_summary_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
         
         # Step 1: Founder Analysis
         jobs[job_id].status = "Analyzing founders..."
+        # await asyncio.sleep(1.0)
         step_data = await workflow.generate_founders_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
         
         # Step 2: GitHub Analysis
         jobs[job_id].status = "Analyzing GitHub..."
+        # await asyncio.sleep(1.0)
         step_data = await workflow.generate_github_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
 
         # Step 3: Code Quality
         jobs[job_id].status = "Analyzing code quality..."
+        # await asyncio.sleep(1.0)
         step_data = await workflow.generate_code_quality_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
 
         # Step 4: Competitors
         jobs[job_id].status = "Analyzing competitors..."
+        # await asyncio.sleep(1.0)
         step_data = await workflow.generate_competitors_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
         
         # Step 5: Memo
         jobs[job_id].status = "Generating memo..."
+        # await asyncio.sleep(1.0)
         step_data = await workflow.generate_memo()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
 
-        jobs[job_id].status = "Analysis complete !"
+        jobs[job_id].status = "Analysis complete!"
         jobs[job_id].completed = True
     except Exception as e:
         jobs[job_id].status = f"Error: {str(e)}"
