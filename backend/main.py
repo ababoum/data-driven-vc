@@ -6,38 +6,11 @@ from typing import Dict
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import asyncio
-import uuid
-import random
-import requests
-import os
-from typing import Dict, Optional, List
-from datetime import datetime
 from openai import OpenAI
 from quantitative.techs import get_techs
 from providers.harmonic.client import HarmonicClient
+
 from models import DomainRequest, StepSummaryRequest, JobResponse, JobStatus
-
-class DomainRequest(BaseModel):
-    domain: str
-
-class StepSummaryRequest(BaseModel):
-    step_data: dict
-
-class JobResponse(BaseModel):
-    job_id: str
-
-class JobStatus(BaseModel):
-    status: str
-    result: Optional[dict] = None
-    completed: bool = False
-    current_step_data: Optional[dict] = None
-    step_history: List[dict] = []
-
-# Initialize clients
-harmonic_client = HarmonicClient()
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # In-memory job store
 jobs: Dict[str, JobStatus] = {}
@@ -86,10 +59,8 @@ async def get_gpt_summary(text: str) -> str:
         prompt = f"Explain this to me in details in markdown format by always keeping your answer objective and concise and by assuming I'm a VC who doesn't know anything about tech (Always try to comment on how it could be a pro or a con in the context of a future investment): {text}"
         client = OpenAI()
         response = await asyncio.to_thread(
-            lambda: openai_client.chat.completions.create(
-                model="gpt-3.5-turbo",
-#            lambda: client.chat.completions.create(
-#                model="gpt-4o-mini",
+            lambda: client.chat.completions.create(
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "user", "content": prompt}
                 ]
@@ -103,6 +74,7 @@ async def get_gpt_summary(text: str) -> str:
 
 async def process_domain(domain: str, job_id: str):
     try:
+        harmonic_client = HarmonicClient()
         # Step 1: Competitors
         company = await harmonic_client.find_company(domain)
         competitors = await harmonic_client.get_competitors(domain)

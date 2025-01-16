@@ -11,84 +11,10 @@ dotenv.load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
-def pl_get_company(domain_name):
-    url = f"https://predictleads.com/api/v3/companies/{domain_name}"
-    headers = {
-        "X-Api-Key": PL_AUTH_KEY,
-        "X-Api-Token": PL_AUTH_TOKEN,
-    }
-    response = requests.get(url, headers=headers)
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        response.raise_for_status()
-
-
-def h_get_company(domain_name):
-    url = f"https://api.harmonic.ai/companies"
-    headers = {
-        "apikey": HARMONIC_API_KEY,
-    }
-    params = {
-        "website_domain": domain_name
-    }
-
-    response = requests.post(url, headers=headers, params=params)
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        response.raise_for_status()
-
-
-def pl_get_technologies(domain_name):
-    url = f"https://predictleads.com/api/v3/companies/{domain_name}/technology_detections?limit=50"
-    headers = {
-        "X-Api-Key": PL_AUTH_KEY,
-        "X-Api-Token": PL_AUTH_TOKEN,
-    }
-
-    response = requests.get(url, headers=headers)
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        response.raise_for_status()
-
-
-def pl_get_tech_name(tech_id):
-    url = f"https://predictleads.com/api/v3/technologies/{tech_id}"
-
-    headers = {
-        "X-Api-Key": PL_AUTH_KEY,
-        "X-Api-Token": PL_AUTH_TOKEN,
-    }
-
-    response = requests.get(url, headers=headers)
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        response.raise_for_status()
-
-
-def oa_sum_technologies(techs: list):
-
-    url = "https://api.openai.com/v1/chat/completions"
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {OPENAI_API_KEY}"
-    }
-
-    data = {
-        "model": "gpt-3.5-turbo",
-        "messages": [
-#async def oa_sum_technologies(techs: list):
-#    response = await AsyncOpenAI().chat.completions.create(
-#        model="gpt-4o-mini",
-#        messages=[
+async def oa_sum_technologies(techs: list):
+    response = await AsyncOpenAI().chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
             {
                 "role": "system",
                 "content": "You are a helpful assistant, that knows a lot of technologies used by startups."
