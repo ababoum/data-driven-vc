@@ -28,10 +28,11 @@ class WebsiteAnalyzer:
 
     @property
     def formatted_webpages(self) -> str:
+        max_chars = 100000
         fmt_webpages = ''
         for url, markdown in self._webpages.items():
             fmt_webpages += f"## {url}\n{markdown}\n\n"
-        return fmt_webpages[:100000]
+        return fmt_webpages[:max_chars]
 
     async def extract_technologies(self) -> list[dict]:
         def build_prompt():

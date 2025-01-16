@@ -3,8 +3,11 @@ import random
 import uuid
 from datetime import datetime
 from typing import Dict
+<<<<<<< HEAD
 import os
 #from openai import OpenAI
+=======
+>>>>>>> 34f2ee2302537c8f5a306b43124d41706c6003ce
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -15,11 +18,6 @@ from providers.harmonic.client import HarmonicClient
 from qualitative.founders import qualify_founder
 
 from models import DomainRequest, StepSummaryRequest, JobResponse, JobStatus
-from dotenv import load_dotenv
-
-load_dotenv("../.env", override=True)
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 from utils import get_gpt_summary
 from workflow import WebsiteAnalysisWorkflow
 
@@ -27,7 +25,9 @@ from workflow import WebsiteAnalysisWorkflow
 jobs: Dict[str, JobStatus] = {}
 
 
+load_dotenv("../.env", override=True)
 load_dotenv()
+
 app = FastAPI(title="Data Driven VC API")
 
 app.add_middleware(
@@ -53,147 +53,27 @@ def format_step_data(step_data: dict) -> str:
     
     return formatted_text
 
-#async def get_gpt_summary(text: str) -> str:
-#    """Get summary from ChatGPT."""
-#    try:
-#        #return api_key
-#        if not OPENAI_API_KEY:
-#            raise ValueError("OPENAI_API_KEY environment variable is not set")
-#            
-#        client = OpenAI(api_key=OPENAI_API_KEY)
-#        prompt = f"Explain this to me in details in markdown format by always keeping your answer objective and concise and by assuming I'm a VC who doesn't know anything about tech (Always try to comment on how it could be a pro or a con in the context of a future investment): {text}"
-#        
-#        response = await asyncio.to_thread(
-#            lambda: client.chat.completions.create(
-#                model="gpt-4o-mini",
-#                messages=[
-#                    {"role": "user", "content": prompt}
-#                ]
-#            )
-#        )
-#        
-#        return response.choices[0].message.content
-#    except Exception as e:
-#        print(f"Error calling ChatGPT API: {str(e)}")
-#        return f"Failed to generate summary: {str(e)}"
 
 async def process_domain(domain: str, job_id: str):
     try:
-        harmonic_client = HarmonicClient()
+        workflow = WebsiteAnalysisWorkflow(domain)
         # Step 1: Competitors
-        company = await harmonic_client.find_company(domain)
-        competitors = await harmonic_client.get_competitors(domain)
-        md_competitors = harmonic_client.format_companies_to_md(competitors)
-        outliers_good, importance_good = harmonic_client.find_outliers(company, competitors, 0.2)
-        outliers_bad, importance_bad = harmonic_client.find_outliers(company, competitors, 0.5)
-        
-        # Calculate performance based on whether the company is in outliers
-        performance = -1  # Default performance
-        if any(outlier.get('entity_urn') == company.get('entity_urn') for outlier in outliers_good):
-            performance = 1
-            performance_comment = "This company outperforms its competitors !"
-            importance = importance_good
-        elif any(outlier.get('entity_urn') == company.get('entity_urn') for outlier in outliers_bad):
-            performance = 0
-            performance_comment = "This company shows average performance compared to competitors"
-            importance = importance_bad
-        else:
-            performance_comment = "This company underperforms compared to its competitors"
-            importance = importance_bad
-            
-        # Format the importance metrics for display
-        importance_md = ""
-        for metric, value in sorted(importance.items(), key=lambda x: x[1], reverse=True):
-            formatted_metric = metric.replace('_', ' ').title()
-            importance_md += f"- **{formatted_metric}**: {value}% impact on the analysis\n"
-            
-        step_data = {
-            "step": 1,
-            "_title": "Competitors Analysis",
-            "competitors": md_competitors,
-            "overperformers": [company["name"] for company in outliers_good],
-            "performance_comment": performance_comment,
-            "importance_metrics": importance_md,
-            "_performance": performance,
-            "calculation_explanation": """The competitor analysis is performed using multiple data points and sophisticated algorithms:
-
-1. Company Identification:
-   - First, we identify direct and indirect competitors using the Harmonic API
-   - Companies are matched based on industry, market segment, and business model
-
-2. Performance Metrics:
-   - Headcount growth rate and current size
-   - Funding history and total raised amount
-   - Market presence and geographic expansion
-   - Customer base and market share
-
-3. Outlier Detection:
-   - We use an Isolation Forest algorithm to detect companies that significantly deviate from the norm
-   - The algorithm considers multiple dimensions simultaneously
-   - Companies in the top 20% are marked as overperformers (green)
-   - Companies in the bottom 50% are marked as underperformers (red)
-   - Others are considered average performers (yellow)
-
-4. Final Score Calculation:
-   - Each metric is weighted based on its importance (shown in Key Metrics Impact)
-   - Growth metrics are given higher weight than absolute numbers
-   - Recent performance is weighted more heavily than historical data"""
-        }
         jobs[job_id].status = "Analyzing competitors..."
+        step_data = await workflow.generate_competitors_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
-        await asyncio.sleep(1)
 
         # Step 2: GitHub Analysis
-        workflow = WebsiteAnalysisWorkflow(domain)
-
         jobs[job_id].status = "Analyzing GitHub..."
-        report, performance = await workflow.generate_github_report()
-        performance_comment = {
-            1: "Strong repository activity and community engagement",
-            0: "Average repository performance and community engagement",
-            -1: "Weak repository activity and community engagement"
-        }[performance]
-        
-        step_data = {
-            "step": 2,
-            "_title": "GitHub Metrics Analysis",
-            "Metrics": report,
-            "_performance": performance,
-            "performance_comment": performance_comment,
-            "calculation_explanation": """
-1. **Stars Growth Rate**: Reflects repository **popularity** over time.  
-2. **Forks Count**: Shows **external interest** in adapting or contributing to the code.  
-3. **Commit Frequency**: Indicates **active development** and maintenance.  
-4. **Contributors Count**: Highlights **team/community engagement**.  
-5. **Issue Resolution Time**: Measures **responsiveness** to bugs and requests.  
-            """
-        }
-
+        step_data = await workflow.generate_github_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
-        await asyncio.sleep(1)
 
-        ## Step 3: Code Quality
-        #jobs[job_id].status = "Analyzing code quality..."
-        #report, performance = await workflow.generate_code_quality_report()
-        #performance_comment = {
-        #    1: "Great code quality and documentation",
-        #    0: "Average code quality and documentation",
-        #    -1: "Weak code quality and documentation"
-        #}[performance]
-#
-        #step_data = {
-        #    "step": 3,
-        #    "_title": "Code Quality Analysis",
-        #    "Report": report,
-        #    "_performance": performance,
-        #    "performance_comment": performance_comment,
-        #}
-#
-        #jobs[job_id].current_step_data = step_data
-        #jobs[job_id].step_history.append(step_data)
-        #await asyncio.sleep(1)
+        # Step 3: Code Quality
+        jobs[job_id].status = "Analyzing code quality..."
+        step_data = await workflow.generate_code_quality_report()
+        jobs[job_id].current_step_data = step_data
+        jobs[job_id].step_history.append(step_data)
 
         # Step 4: Founder Analysis
         
@@ -267,9 +147,6 @@ async def process_domain(domain: str, job_id: str):
      * Concerning Performance (Red): Average score < -0.25"""
         }
         jobs[job_id].status = "Analyzing founders..."
-        jobs[job_id].current_step_data = step_data
-        jobs[job_id].step_history.append(step_data)
-        await asyncio.sleep(1)
 
         # Step 5: Key People
         step_data = {

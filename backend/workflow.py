@@ -41,18 +41,121 @@ class WebsiteAnalysisWorkflow:
 
         return domain
 
-    async def generate_github_report(self) -> tuple[str, int]:
+    async def generate_competitors_report(self) -> dict:
+        harmonic_client = HarmonicClient()
+        company = await harmonic_client.find_company(self.domain)
+        competitors = await harmonic_client.get_competitors(self.domain)
+        md_competitors = harmonic_client.format_companies_to_md(competitors)
+        outliers_good, importance_good = harmonic_client.find_outliers(company, competitors, 0.2)
+        outliers_bad, importance_bad = harmonic_client.find_outliers(company, competitors, 0.5)
+
+        # Calculate performance based on whether the company is in outliers
+        performance = -1  # Default performance
+        if any(outlier.get('entity_urn') == company.get('entity_urn') for outlier in outliers_good):
+            performance = 1
+            performance_comment = "This company outperforms its competitors !"
+            importance = importance_good
+        elif any(outlier.get('entity_urn') == company.get('entity_urn') for outlier in outliers_bad):
+            performance = 0
+            performance_comment = "This company shows average performance compared to competitors"
+            importance = importance_bad
+        else:
+            performance_comment = "This company underperforms compared to its competitors"
+            importance = importance_bad
+
+        # Format the importance metrics for display
+        importance_md = ""
+        for metric, value in sorted(importance.items(), key=lambda x: x[1], reverse=True):
+            formatted_metric = metric.replace('_', ' ').title()
+            importance_md += f"- **{formatted_metric}**: {value}% impact on the analysis\n"
+
+        step_data = {
+            "step": 1,
+            "_title": "Competitors Analysis",
+            "competitors": md_competitors,
+            "overperformers": [company["name"] for company in outliers_good],
+            "performance_comment": performance_comment,
+            "importance_metrics": importance_md,
+            "_performance": performance,
+            "calculation_explanation": """The competitor analysis is performed using multiple data points and sophisticated algorithms:
+
+        1. Company Identification:
+           - First, we identify direct and indirect competitors using the Harmonic API
+           - Companies are matched based on industry, market segment, and business model
+
+        2. Performance Metrics:
+           - Headcount growth rate and current size
+           - Funding history and total raised amount
+           - Market presence and geographic expansion
+           - Customer base and market share
+
+        3. Outlier Detection:
+           - We use an Isolation Forest algorithm to detect companies that significantly deviate from the norm
+           - The algorithm considers multiple dimensions simultaneously
+           - Companies in the top 20% are marked as overperformers (green)
+           - Companies in the bottom 50% are marked as underperformers (red)
+           - Others are considered average performers (yellow)
+
+        4. Final Score Calculation:
+           - Each metric is weighted based on its importance (shown in Key Metrics Impact)
+           - Growth metrics are given higher weight than absolute numbers
+           - Recent performance is weighted more heavily than historical data"""
+        }
+        return step_data
+
+    async def generate_github_report(self) -> dict:
         await self.gh_analyzer.run_analysis()
         self.gh_report = self.gh_analyzer.report
-        return self.gh_analyzer.report, self.gh_analyzer.color
+        performance = self.gh_analyzer.color
+        report = self.gh_analyzer.report
 
-    async def generate_code_quality_report(self) -> tuple[str, int]:
+        performance_comment = {
+            1: "Strong repository activity and community engagement",
+            0: "Average repository performance and community engagement",
+            -1: "Weak repository activity and community engagement"
+        }[performance]
+
+        step_data = {
+            "step": 2,
+            "_title": "GitHub Metrics Analysis",
+            "Metrics": report,
+            "_performance": performance,
+            "performance_comment": performance_comment,
+            "calculation_explanation": """
+1. **Stars Growth Rate**: Reflects repository **popularity** over time.  
+2. **Forks Count**: Shows **external interest** in adapting or contributing to the code.  
+3. **Commit Frequency**: Indicates **active development** and maintenance.  
+4. **Contributors Count**: Highlights **team/community engagement**.  
+5. **Issue Resolution Time**: Measures **responsiveness** to bugs and requests.  
+"""
+        }
+        return step_data
+
+    async def generate_code_quality_report(self) -> dict:
         if not self.gh_analyzer.owner:
-            return 'No GitHub repository found.', -1
-        analyzer = CodeQualityAnalyzer(self.gh_analyzer.owner, self.gh_analyzer.repo)
-        analyzer.run_analysis()
-        self.code_report = analyzer.report
-        return analyzer.report, analyzer._color
+            report = 'No GitHub repository found.'
+            performance = -1
+        else:
+            analyzer = CodeQualityAnalyzer(self.gh_analyzer.owner, self.gh_analyzer.repo)
+            await asyncio.to_thread(analyzer.run_analysis)
+            self.code_report = analyzer.report
+            performance = analyzer.color
+            report = analyzer.report
+
+        performance_comment = {
+            1: "Great code quality and documentation",
+            0: "Average code quality and documentation",
+            -1: "Weak code quality and documentation"
+        }[performance]
+
+        step_data = {
+            "step": 3,
+            "_title": "Code Quality Analysis",
+            "Report": report,
+            "_performance": performance,
+            "performance_comment": performance_comment,
+        }
+        return step_data
 
     async def fetch_employees_experience(self):
         print('Fetching employees experience...')
