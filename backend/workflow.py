@@ -13,6 +13,7 @@ from services.github_analyzer import GitHubAnalyzer
 from services.website_analyzer import WebsiteAnalyzer
 from cache import memorize
 from qualitative.founders import qualify_founder
+from quantitative.techs import get_all_techs_with_trends
 
 class WebsiteAnalysisWorkflow:
     gh_report: str | None = None
@@ -266,6 +267,62 @@ class WebsiteAnalysisWorkflow:
                 "_performance": 0,
                 "performance_comment": "Analysis failed",
                 "calculation_explanation": str(e)
+            }
+            
+    @memorize()
+    async def generate_tech_trends_report(self) -> dict:
+        try:
+            techs = await get_all_techs_with_trends(self.domain)
+            techs_dict = json.loads(techs)
+
+            # Calculate performance based on tech trends
+            performance = 0
+            total_techs = len(techs_dict["specific_techs"])
+            ascending_count = 0
+
+            for tech in techs_dict["specific_techs"]:
+                if tech["stats"]["trend"] == "ascending":
+                    ascending_count += 1
+
+            if total_techs > 0:
+                ascending_ratio = ascending_count / total_techs
+                if ascending_ratio >= 0.7:
+                    performance = 1
+                elif ascending_ratio >= 0.4:
+                    performance = 0.5
+                else:
+                    performance = 0
+
+            performance_comment = ""
+            if performance == 1:
+                performance_comment = "Strong technology choices with positive adoption trends"
+            elif performance == 0.5:
+                performance_comment = "Mixed technology stack with some trending and some stable technologies"
+            else:
+                performance_comment = "Technology stack shows declining adoption trends"
+
+            step_data = {
+                "step": 0,
+                "_title": "Technology Trends Analysis",
+                "company_name": techs_dict["company_name"],
+                "description": techs_dict["description"],
+                "main_techs": techs_dict["main_techs"],
+                "specific_techs": techs_dict["specific_techs"],
+                "_performance": performance,
+                "performance_comment": performance_comment
+            }
+            return step_data
+
+        except Exception as e:
+            return {
+                "step": 0,
+                "_title": "Technology Trends Analysis",
+                "company_name": "Error analyzing tech trends",
+                "description": str(e),
+                "main_techs": [],
+                "specific_techs": [],
+                "_performance": 0,
+                "performance_comment": "Analysis failed"
             }
 
     async def fetch_employees_experience(self):

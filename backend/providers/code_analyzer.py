@@ -12,7 +12,7 @@ import time
 class CodeAnalyzer:
     def __init__(self):
         # Create a unique directory name in the user's temp directory
-        self.user_temp = Path(tempfile.gettempdir()) / "startech_vc" / str(uuid.uuid4())
+        self.user_temp = Path(tempfile.gettempdir()) / "nontech_vc" / str(uuid.uuid4())
         self.user_temp.parent.mkdir(exist_ok=True)
         self.user_temp.mkdir(exist_ok=True)
 

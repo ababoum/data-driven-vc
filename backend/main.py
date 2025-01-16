@@ -52,6 +52,12 @@ def format_step_data(step_data: dict) -> str:
 async def process_domain(domain: str, job_id: str):
     try:
         workflow = WebsiteAnalysisWorkflow(domain)
+        # Step 0: Tech Trends
+        jobs[job_id].status = "Analyzing tech trends..."
+        step_data = await workflow.generate_tech_trends_report()
+        jobs[job_id].current_step_data = step_data
+        jobs[job_id].step_history.append(step_data)
+        
         # Step 1: Competitors
         jobs[job_id].status = "Analyzing competitors..."
         step_data = await workflow.generate_competitors_report()

@@ -1,4 +1,4 @@
-# Startech VC - Data-Driven Investment Analysis Platform
+# Nontech VC - Data-Driven Investment Analysis Platform
 
 A modern web application that performs comprehensive analysis of tech companies using multiple data sources to provide investment insights.
 

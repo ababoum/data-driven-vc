@@ -425,7 +425,7 @@ function App() {
             {!analyzedDomain ? (
               <>
                 <Typography variant="h2" component="h1" gutterBottom sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>
-                  Startech VC
+                  Nontech VC
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', maxWidth: '600px', margin: '0 auto' }}>
                   <TextField
