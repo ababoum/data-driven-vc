@@ -97,7 +97,7 @@ class CodeQualityAnalyzer:
         match = re.search(r'\d+', self._report)
         rate = 1
         if match:
-            rate = match.group()
+            rate = int(match.group())
         if rate <= 3:
             self._color = -1
         elif rate <= 7:

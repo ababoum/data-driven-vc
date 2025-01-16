@@ -4,17 +4,22 @@ import uuid
 from datetime import datetime
 from typing import Dict
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from openai import AsyncOpenAI
+from starlette import status
+
 from providers.harmonic.client import HarmonicClient
 
 from models import DomainRequest, StepSummaryRequest, JobResponse, JobStatus
+from utils import get_gpt_summary
 from workflow import WebsiteAnalysisWorkflow
 
 # In-memory job store
 jobs: Dict[str, JobStatus] = {}
 
+
+load_dotenv()
 app = FastAPI(title="Data Driven VC API")
 
 app.add_middleware(
@@ -27,48 +32,19 @@ app.add_middleware(
 
 def format_step_data(step_data: dict) -> str:
     """Format step data into a readable text."""
-    step_type = step_data.get("step")
+    title = step_data.get("title", "Analysis Step")
     
     # Remove step number from the data to display
     data_to_display = {k: v for k, v in step_data.items() if k != "step"}
     
-    step_titles = {
-        1: "Competitors informations",
-        2: "Founders",
-        3: "Company Details",
-        4: "Competitors",
-        5: "Key People",
-        6: "Market analysis",
-        7: "Financial assessment",
-        8: "Market Sentiment",
-        9: "Competitive Analysis",
-        10: "Final Scoring"
-    }
-    
     # Create a formatted string with the step title and data
-    formatted_text = f"{step_titles.get(step_type, 'Analysis Step')}:\n"
+    formatted_text = f"{title}:\n"
     for key, value in data_to_display.items():
         formatted_key = key.replace('_', ' ').title()
         formatted_text += f"- {formatted_key}: {value}\n"
     
     return formatted_text
 
-async def get_gpt_summary(text: str) -> str:
-    """Get summary from ChatGPT."""
-    try:
-        prompt = f"Explain this to me in details in markdown format by always keeping your answer objective and concise and by assuming I'm a VC who doesn't know anything about tech (Always try to comment on how it could be a pro or a con in the context of a future investment): {text}"
-        client = AsyncOpenAI()
-        response = await client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
-            )
-        
-        return response.choices[0].message.content
-    except Exception as e:
-        print(f"Error calling ChatGPT API: {str(e)}")
-        return f"Failed to generate summary: {str(e)}"
 
 async def process_domain(domain: str, job_id: str):
     try:
@@ -93,6 +69,7 @@ async def process_domain(domain: str, job_id: str):
             
         step_data = {
             "step": 1,
+            "_title": "Competitors Analysis",
             "competitors": md_competitors,
             "overperformers": [company["name"] for company in outliers_good],
             "performance_comment": performance_comment,
@@ -139,7 +116,7 @@ async def process_domain(domain: str, job_id: str):
         
         step_data = {
             "step": 2,
-            "title": "GitHub Metrics Analysis",
+            "_title": "GitHub Metrics Analysis",
             "Metrics": report,
             "_performance": performance,
             "performance_comment": performance_comment,
@@ -167,7 +144,7 @@ async def process_domain(domain: str, job_id: str):
 
         step_data = {
             "step": 3,
-            "title": "Code Quality Analysis",
+            "_title": "Code Quality Analysis",
             "Report": report,
             "_performance": performance,
             "performance_comment": performance_comment,
@@ -180,6 +157,7 @@ async def process_domain(domain: str, job_id: str):
         # Step 4: Competitor Analysis
         step_data = {
             "step": 4,
+            "_title": "TODO",
             "market_size": f"${random.randint(1, 100)}B",
             "competitors": random.randint(5, 20),
             "market_growth": f"{random.randint(5, 30)}% YoY"
@@ -192,6 +170,7 @@ async def process_domain(domain: str, job_id: str):
         # Step 5: Key People
         step_data = {
             "step": 5,
+            "_title": "TODO",
             "market_size": f"${random.randint(1, 100)}B",
             "competitors": random.randint(5, 20),
             "market_growth": f"{random.randint(5, 30)}% YoY"
@@ -204,6 +183,7 @@ async def process_domain(domain: str, job_id: str):
         # Step 6: Market analysis
         step_data = {
             "step": 6,
+            "_title": "TODO",
             "market_size": f"${random.randint(1, 100)}B",
             "competitors": random.randint(5, 20),
             "market_growth": f"{random.randint(5, 30)}% YoY"
@@ -216,6 +196,7 @@ async def process_domain(domain: str, job_id: str):
         # Step 7: Financial assessment
         step_data = {
             "step": 7,
+            "_title": "TODO",
             "revenue_range": f"${random.randint(1, 50)}M - ${random.randint(51, 100)}M",
             "funding_rounds": random.randint(1, 5),
             "burn_rate": f"${random.randint(100, 999)}K/month"
@@ -228,6 +209,7 @@ async def process_domain(domain: str, job_id: str):
         # Step 8: Team analysis
         step_data = {
             "step": 8,
+            "_title": "TODO",
             "team_size": random.randint(10, 200),
             "key_executives": random.randint(3, 8),
             "technical_ratio": f"{random.randint(40, 80)}%"
@@ -240,6 +222,7 @@ async def process_domain(domain: str, job_id: str):
         # Step 9: Technology stack
         step_data = {
             "step": 9,
+            "_title": "TODO",
             "tech_stack_count": random.randint(5, 15),
             "main_languages": random.randint(3, 8),
             "infrastructure": random.choice(["AWS", "GCP", "Azure", "Hybrid"])
@@ -252,6 +235,7 @@ async def process_domain(domain: str, job_id: str):
         # Step 10: Growth metrics
         step_data = {
             "step": 10,
+            "_title": "TODO",
             "user_growth": f"{random.randint(10, 100)}%",
             "mrr_growth": f"{random.randint(5, 50)}%",
             "retention": f"{random.randint(70, 95)}%"
@@ -264,6 +248,7 @@ async def process_domain(domain: str, job_id: str):
         # Step 11: Risk assessment
         step_data = {
             "step": 11,
+            "_title": "TODO",
             "risk_score": random.randint(1, 100),
             "key_risks": random.randint(2, 5),
             "mitigation_strategies": random.randint(3, 6)
@@ -276,6 +261,7 @@ async def process_domain(domain: str, job_id: str):
         # Step 12: Market sentiment
         step_data = {
             "step": 12,
+            "_title": "TODO",
             "sentiment_score": random.randint(1, 100),
             "news_mentions": random.randint(10, 1000),
             "social_reach": f"{random.randint(1000, 999999)}+"
@@ -303,6 +289,7 @@ async def process_domain(domain: str, job_id: str):
         
         step_data = {
             "step": 14,
+            "_title": "TODO",
             "final_score": random.randint(60, 100),
             "investment_recommendation": random.choice(["Strong Buy", "Buy", "Hold", "Watch"])
         }
@@ -328,16 +315,14 @@ async def process_domain(domain: str, job_id: str):
     except Exception as e:
         jobs[job_id].status = f"Error: {str(e)}"
         jobs[job_id].completed = True
+        raise e
 
 
 @app.post("/summarize-step")
 async def summarize_step(request: StepSummaryRequest):
     # Format the step data into readable text
     formatted_text = format_step_data(request.step_data)
-    
-    # Get summary from ChatGPT
     summary = await get_gpt_summary(formatted_text)
-    
     return {"summary": summary}
 
 
@@ -350,15 +335,13 @@ async def root():
 async def analyze_domain(request: DomainRequest):
     job_id = str(uuid.uuid4())
     jobs[job_id] = JobStatus(status="Initializing analysis...")
-    
     # Start background task
     asyncio.create_task(process_domain(request.domain, job_id))
-    
     return JobResponse(job_id=job_id)
 
 
 @app.get("/job/{job_id}", response_model=JobStatus)
 async def get_job_status(job_id: str):
     if job_id not in jobs:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
     return jobs[job_id]

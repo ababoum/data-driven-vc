@@ -20,6 +20,7 @@ class HarmonicClient:
         url = f"{self.base_url}/companies"
         params = {"website_domain": website_domain}
         async with httpx.AsyncClient() as client:
+            print(self.headers)
             response = await client.post(url, headers=self.headers, params=params)
             response.raise_for_status()
             return response.json()
