@@ -27,27 +27,15 @@ interface JobResult {
 
 interface StepData {
   step: number;
+  _title: string;
   [key: string]: any;
 }
 
 function formatStepDataToMarkdown(data: StepData): string {
-  const stepTitles: { [key: number]: string } = {
-    1: "Competitors informations",
-    2: "Founders",
-    3: "Company Details",
-    4: "Competitors",
-    5: "Key People",
-    6: "Market Analysis",
-    7: "Financial Assessment",
-    8: "Market Sentiment",
-    9: "Competitive Analysis",
-    10: "Final Scoring"
-  };
-
-  let markdown = `## ${stepTitles[data.step] || 'Analysis Step'}\n\n`;
+  let markdown = `## ${data._title || 'Analysis Step'}\n\n`;
 
   Object.entries(data)
-    .filter(([key]) => !['step', '_performance', 'calculation_explanation'].includes(key))
+    .filter(([key]) => !['step', '_performance', 'calculation_explanation', '_title'].includes(key))
     .forEach(([key, value]) => {
       const formattedKey = key.split('_').map(word => 
         word.charAt(0).toUpperCase() + word.slice(1)
@@ -69,19 +57,6 @@ function formatStepDataToMarkdown(data: StepData): string {
 
 function App() {
   const [mode, setMode] = useState<'light' | 'dark'>('dark');
-
-  const stepTitles: { [key: number]: string } = {
-    1: "Competitors informations",
-    2: "Founders",
-    3: "Company Details",
-    4: "Competitors",
-    5: "Key People",
-    6: "Market Analysis",
-    7: "Financial Assessment",
-    8: "Market Sentiment",
-    9: "Competitive Analysis",
-    10: "Final Scoring"
-  };
 
   const theme = createTheme({
     palette: {
@@ -228,7 +203,7 @@ function App() {
     const isLoading = loadingSteps.has(data.step);
     const isExpanded = expandedSteps.has(data.step);
     const isExplanationExpanded = expandedSteps.has(`${data.step}_explanation`);
-    const stepTitle = stepTitles[data.step] || 'Analysis Step';
+    const stepTitle = data._title || 'Analysis Step';
 
     const getBorderColor = (performance: number) => {
       switch(performance) {
@@ -556,7 +531,7 @@ function App() {
                     }}>
                       {stepHistory.map((step) => {
                         const getTooltipContent = (step: StepData) => {
-                          const title = `${stepTitles[step.step]}\n`;
+                          const title = `${step._title}\n`;
                           switch(step.step) {
                             case 1:
                               return title + `${step.performance_comment}\nCompetitors Found: ${step.competitors ? 'Yes' : 'No'}`;

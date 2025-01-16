@@ -1,10 +1,10 @@
 import os
-import requests
-from typing import List, Dict, Any, Optional
+from typing import List
 
 import httpx
-from sklearn.ensemble import IsolationForest
 import numpy as np
+from sklearn.ensemble import IsolationForest
+
 
 class HarmonicClient:
     base_url: str = "https://api.harmonic.ai"
@@ -20,11 +20,12 @@ class HarmonicClient:
         url = f"{self.base_url}/companies"
         params = {"website_domain": website_domain}
         async with httpx.AsyncClient() as client:
+            print(self.headers)
             response = await client.post(url, headers=self.headers, params=params)
             response.raise_for_status()
             return response.json()
         
-    async def get_company_from_urn(self, urn: str):
+    async def get_company_from_urn(self, urn: str) -> dict:
         url = f"{self.base_url}/companies/{urn}"
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=self.headers)
@@ -50,7 +51,7 @@ class HarmonicClient:
             people_data.append(person_data)
         return people_data
 
-    async def get_competitors(self, website_domain: str) -> List[str]:
+    async def get_competitors(self, website_domain: str) -> List[dict]:
         """
         Get a list of similar companies (competitors) for a given domain.
         

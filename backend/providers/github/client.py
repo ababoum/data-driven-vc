@@ -10,7 +10,10 @@ class GitHubClient:
     base_url = 'https://api.github.com/graphql'
 
     def __init__(self, token: str = None):
-        self.token = token or os.getenv('GITHUB_TOKEN')
+        token = token or os.getenv('GITHUB_TOKEN')
+        self.headers = {
+            "Authorization": f"token {token}"
+        }
 
     def get_query_from_file(self, filename: str) -> str:
         with open(Path(__file__).resolve().parent / 'queries' / filename, 'r') as f:
@@ -21,15 +24,13 @@ class GitHubClient:
             response = await client.post(
                 self.base_url,
                 json={'query': query},
-                headers={
-                    "Authorization": f"token {self.token}"
-                }
+                headers=self.headers
             )
             response.raise_for_status()
             return response.json()
 
     @staticmethod
-    def _serialize_repo(raw_item: dict):
+    def _serialize_repo(raw_item: dict) -> dict:
         mapper: dict[str, str] = {
             "archived": "isArchived",
             "created_at": "createdAt",
@@ -109,7 +110,7 @@ class GitHubClient:
         }
         return extract_nested_fields(raw_item, mapper)
 
-    async def fetch_repo(self, owner: str, name: str):
+    async def get_repo(self, owner: str, name: str):
         query = Template(self.get_query_from_file("repo_by_name.graphql")).substitute(
             owner=owner,
             name=name
@@ -117,9 +118,30 @@ class GitHubClient:
         data = await self.run_query(query)
         return self._serialize_repo(data['data']['repository'])
 
-    async def fetch_user(self, username: str):
+    async def get_user(self, username: str) -> dict:
         query = Template(self.get_query_from_file("user_by_name.graphql")).substitute(
             login=username
         )
         data = await self.run_query(query)
         return self._serialize_user(data['data']['repositoryOwner'])
+
+    async def get_contributors(self, owner: str, repo: str) -> dict:
+        url = f"https://api.github.com/repos/{owner}/{repo}/contributors"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=self.headers)
+            response.raise_for_status()
+            return response.json()
+
+    async def get_issues(self, owner: str, repo: str) -> list[dict]:
+        url = f"https://api.github.com/repos/{owner}/{repo}/issues?state=all"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=self.headers)
+            response.raise_for_status()
+            return response.json()
+
+    async def get_commits(self, owner: str, repo: str) -> list[dict]:
+        url = f"https://api.github.com/repos/{owner}/{repo}/commits"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=self.headers)
+            response.raise_for_status()
+            return response.json()

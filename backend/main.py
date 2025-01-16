@@ -6,10 +6,11 @@ from typing import Dict
 import os
 
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from openai import OpenAI
-from quantitative.techs import get_techs
+from starlette import status
+
 from providers.harmonic.client import HarmonicClient
 from qualitative.founders import qualify_founder
 
@@ -19,10 +20,14 @@ from dotenv import load_dotenv
 load_dotenv("../.env", override=True)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+from utils import get_gpt_summary
+from workflow import WebsiteAnalysisWorkflow
 
 # In-memory job store
 jobs: Dict[str, JobStatus] = {}
 
+
+load_dotenv()
 app = FastAPI(title="Data Driven VC API")
 
 app.add_middleware(
@@ -35,55 +40,42 @@ app.add_middleware(
 
 def format_step_data(step_data: dict) -> str:
     """Format step data into a readable text."""
-    step_type = step_data.get("step")
+    title = step_data.get("title", "Analysis Step")
     
     # Remove step number from the data to display
     data_to_display = {k: v for k, v in step_data.items() if k != "step"}
     
-    step_titles = {
-        1: "Competitors informations",
-        2: "Founders",
-        3: "Company Details",
-        4: "Competitors",
-        5: "Key People",
-        6: "Market analysis",
-        7: "Financial assessment",
-        8: "Market Sentiment",
-        9: "Competitive Analysis",
-        10: "Final Scoring"
-    }
-    
     # Create a formatted string with the step title and data
-    formatted_text = f"{step_titles.get(step_type, 'Analysis Step')}:\n"
+    formatted_text = f"{title}:\n"
     for key, value in data_to_display.items():
         formatted_key = key.replace('_', ' ').title()
         formatted_text += f"- {formatted_key}: {value}\n"
     
     return formatted_text
 
-async def get_gpt_summary(text: str) -> str:
-    """Get summary from ChatGPT."""
-    try:
-        #return api_key
-        if not OPENAI_API_KEY:
-            raise ValueError("OPENAI_API_KEY environment variable is not set")
-            
-        client = OpenAI(api_key=OPENAI_API_KEY)
-        prompt = f"Explain this to me in details in markdown format by always keeping your answer objective and concise and by assuming I'm a VC who doesn't know anything about tech (Always try to comment on how it could be a pro or a con in the context of a future investment): {text}"
-        
-        response = await asyncio.to_thread(
-            lambda: client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
-            )
-        )
-        
-        return response.choices[0].message.content
-    except Exception as e:
-        print(f"Error calling ChatGPT API: {str(e)}")
-        return f"Failed to generate summary: {str(e)}"
+#async def get_gpt_summary(text: str) -> str:
+#    """Get summary from ChatGPT."""
+#    try:
+#        #return api_key
+#        if not OPENAI_API_KEY:
+#            raise ValueError("OPENAI_API_KEY environment variable is not set")
+#            
+#        client = OpenAI(api_key=OPENAI_API_KEY)
+#        prompt = f"Explain this to me in details in markdown format by always keeping your answer objective and concise and by assuming I'm a VC who doesn't know anything about tech (Always try to comment on how it could be a pro or a con in the context of a future investment): {text}"
+#        
+#        response = await asyncio.to_thread(
+#            lambda: client.chat.completions.create(
+#                model="gpt-4o-mini",
+#                messages=[
+#                    {"role": "user", "content": prompt}
+#                ]
+#            )
+#        )
+#        
+#        return response.choices[0].message.content
+#    except Exception as e:
+#        print(f"Error calling ChatGPT API: {str(e)}")
+#        return f"Failed to generate summary: {str(e)}"
 
 async def process_domain(domain: str, job_id: str):
     try:
@@ -117,6 +109,7 @@ async def process_domain(domain: str, job_id: str):
             
         step_data = {
             "step": 1,
+            "_title": "Competitors Analysis",
             "competitors": md_competitors,
             "overperformers": [company["name"] for company in outliers_good],
             "performance_comment": performance_comment,
@@ -151,103 +144,53 @@ async def process_domain(domain: str, job_id: str):
         jobs[job_id].step_history.append(step_data)
         await asyncio.sleep(1)
 
-        # Step 2: Founders Analysis
-        performance = random.choice([-1, 0, 1])
+        # Step 2: GitHub Analysis
+        workflow = WebsiteAnalysisWorkflow(domain)
+
+        jobs[job_id].status = "Analyzing GitHub..."
+        report, performance = await workflow.generate_github_report()
         performance_comment = {
-            1: "Strong founding team with relevant experience",
-            0: "Average founding team composition",
-            -1: "Founding team lacks key experience"
+            1: "Strong repository activity and community engagement",
+            0: "Average repository performance and community engagement",
+            -1: "Weak repository activity and community engagement"
         }[performance]
         
         step_data = {
             "step": 2,
-            "market_size": f"${random.randint(1, 100)}B",
-            "competitors": random.randint(5, 20),
-            "market_growth": f"{random.randint(5, 30)}% YoY",
-            "performance_comment": performance_comment,
+            "_title": "GitHub Metrics Analysis",
+            "Metrics": report,
             "_performance": performance,
-            "calculation_explanation": """The founders' assessment is based on a comprehensive analysis of several key factors:
-
-1. Professional Background:
-   - Previous startup experience (especially successful exits)
-   - Industry expertise and years of experience
-   - Technical expertise for tech companies
-   - Management and leadership experience
-
-2. Educational Background:
-   - Relevant degrees and certifications
-   - Prestigious institutions (weighted but not overemphasized)
-   - Continuing education and professional development
-
-3. Track Record:
-   - Previous companies' performance
-   - Patents and innovations
-   - Industry recognition and awards
-   - Published works or research
-
-4. Team Composition:
-   - Complementary skill sets among founders
-   - Balance of technical and business expertise
-   - Previous collaborations between founders
-   - Advisory board strength
-
-The final score is calculated by weighting these factors based on their relevance to the specific industry and market segment."""
+            "performance_comment": performance_comment,
+            "calculation_explanation": """
+1. **Stars Growth Rate**: Reflects repository **popularity** over time.  
+2. **Forks Count**: Shows **external interest** in adapting or contributing to the code.  
+3. **Commit Frequency**: Indicates **active development** and maintenance.  
+4. **Contributors Count**: Highlights **team/community engagement**.  
+5. **Issue Resolution Time**: Measures **responsiveness** to bugs and requests.  
+            """
         }
-        jobs[job_id].status = "Analyzing market position..."
+
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
         await asyncio.sleep(1)
 
-        # Step 3: Company Details
-        performance = random.choice([-1, 0, 1])
+        # Step 3: Code Quality
+        jobs[job_id].status = "Analyzing code quality..."
+        report, performance = await workflow.generate_code_quality_report()
         performance_comment = {
-            1: "Company shows strong market positioning",
-            0: "Company has stable market presence",
-            -1: "Company faces significant market challenges"
+            1: "Great code quality and documentation",
+            0: "Average code quality and documentation",
+            -1: "Weak code quality and documentation"
         }[performance]
-        
+
         step_data = {
             "step": 3,
-            "market_size": f"${random.randint(1, 100)}B",
-            "competitors": random.randint(5, 20),
-            "market_growth": f"{random.randint(5, 30)}% YoY",
-            "performance_comment": performance_comment,
+            "_title": "Code Quality Analysis",
+            "Report": report,
             "_performance": performance,
-            "calculation_explanation": """The company details analysis involves a multi-faceted evaluation of the business:
-
-1. Market Position:
-   - Current market share and growth trajectory
-   - Brand strength and recognition
-   - Customer satisfaction metrics
-   - Competitive advantages and moats
-
-2. Business Model:
-   - Revenue streams and diversification
-   - Pricing strategy and unit economics
-   - Customer acquisition costs (CAC)
-   - Lifetime value (LTV) and retention rates
-
-3. Growth Metrics:
-   - Year-over-year revenue growth
-   - User or customer growth
-   - Geographic expansion
-   - Product line expansion
-
-4. Operational Efficiency:
-   - Gross and net margins
-   - Operational costs and scalability
-   - Resource utilization
-   - Technology infrastructure
-
-5. Risk Assessment:
-   - Regulatory compliance
-   - Market dependencies
-   - Technical debt
-   - Competition threats
-
-Each factor is scored individually and weighted based on industry standards and market conditions to produce the final assessment."""
+            "performance_comment": performance_comment,
         }
-        jobs[job_id].status = "Analyzing market position..."
+
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
         await asyncio.sleep(1)
@@ -271,6 +214,7 @@ Each factor is scored individually and weighted based on industry standards and 
         # Step 5: Key People
         step_data = {
             "step": 5,
+            "_title": "TODO",
             "market_size": f"${random.randint(1, 100)}B",
             "competitors": founder_1_background,
             "market_growth": f"{random.randint(5, 30)}% YoY"
@@ -283,6 +227,7 @@ Each factor is scored individually and weighted based on industry standards and 
         # Step 6: Market analysis
         step_data = {
             "step": 6,
+            "_title": "TODO",
             "market_size": f"${random.randint(1, 100)}B",
             "competitors": random.randint(5, 20),
             "market_growth": f"{random.randint(5, 30)}% YoY"
@@ -295,6 +240,7 @@ Each factor is scored individually and weighted based on industry standards and 
         # Step 7: Financial assessment
         step_data = {
             "step": 7,
+            "_title": "TODO",
             "revenue_range": f"${random.randint(1, 50)}M - ${random.randint(51, 100)}M",
             "funding_rounds": random.randint(1, 5),
             "burn_rate": f"${random.randint(100, 999)}K/month"
@@ -307,6 +253,7 @@ Each factor is scored individually and weighted based on industry standards and 
         # Step 8: Team analysis
         step_data = {
             "step": 8,
+            "_title": "TODO",
             "team_size": random.randint(10, 200),
             "key_executives": random.randint(3, 8),
             "technical_ratio": f"{random.randint(40, 80)}%"
@@ -319,6 +266,7 @@ Each factor is scored individually and weighted based on industry standards and 
         # Step 9: Technology stack
         step_data = {
             "step": 9,
+            "_title": "TODO",
             "tech_stack_count": random.randint(5, 15),
             "main_languages": random.randint(3, 8),
             "infrastructure": random.choice(["AWS", "GCP", "Azure", "Hybrid"])
@@ -331,6 +279,7 @@ Each factor is scored individually and weighted based on industry standards and 
         # Step 10: Growth metrics
         step_data = {
             "step": 10,
+            "_title": "TODO",
             "user_growth": f"{random.randint(10, 100)}%",
             "mrr_growth": f"{random.randint(5, 50)}%",
             "retention": f"{random.randint(70, 95)}%"
@@ -343,6 +292,7 @@ Each factor is scored individually and weighted based on industry standards and 
         # Step 11: Risk assessment
         step_data = {
             "step": 11,
+            "_title": "TODO",
             "risk_score": random.randint(1, 100),
             "key_risks": random.randint(2, 5),
             "mitigation_strategies": random.randint(3, 6)
@@ -355,6 +305,7 @@ Each factor is scored individually and weighted based on industry standards and 
         # Step 12: Market sentiment
         step_data = {
             "step": 12,
+            "_title": "TODO",
             "sentiment_score": random.randint(1, 100),
             "news_mentions": random.randint(10, 1000),
             "social_reach": f"{random.randint(1000, 999999)}+"
@@ -382,6 +333,7 @@ Each factor is scored individually and weighted based on industry standards and 
         
         step_data = {
             "step": 14,
+            "_title": "TODO",
             "final_score": random.randint(60, 100),
             "investment_recommendation": random.choice(["Strong Buy", "Buy", "Hold", "Watch"])
         }
@@ -407,16 +359,14 @@ Each factor is scored individually and weighted based on industry standards and 
     except Exception as e:
         jobs[job_id].status = f"Error: {str(e)}"
         jobs[job_id].completed = True
+        raise e
 
 
 @app.post("/summarize-step")
 async def summarize_step(request: StepSummaryRequest):
     # Format the step data into readable text
     formatted_text = format_step_data(request.step_data)
-    
-    # Get summary from ChatGPT
     summary = await get_gpt_summary(formatted_text)
-    
     return {"summary": summary}
 
 
@@ -429,15 +379,13 @@ async def root():
 async def analyze_domain(request: DomainRequest):
     job_id = str(uuid.uuid4())
     jobs[job_id] = JobStatus(status="Initializing analysis...")
-    
     # Start background task
     asyncio.create_task(process_domain(request.domain, job_id))
-    
     return JobResponse(job_id=job_id)
 
 
 @app.get("/job/{job_id}", response_model=JobStatus)
 async def get_job_status(job_id: str):
     if job_id not in jobs:
-        raise HTTPException(status_code=404, detail="Job not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
     return jobs[job_id]

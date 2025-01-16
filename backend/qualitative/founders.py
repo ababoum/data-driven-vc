@@ -111,7 +111,58 @@ def enhance_founder_background(company_prompt: str = None, experience_prompt: st
                                     "sentiment_reason"
                                 ]
                             }
-                        }
+                        },
+                        "global": {
+                            "type": "object",
+                            "description": "Global sentiment of the founder based on all experiences and educations",
+                            "properties": {
+                                "sentiment": {
+                                    "type": "string",
+                                    "enum": ["outstanding", "positive", "kinda positive", "neutral", "negative"]
+                                },
+                                "sentiment_reason": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "sentiment",
+                                "sentiment_reason"
+                            ]
+                        },
+                        "global_experience": {
+                            "type": "object",
+                            "description": "Global sentiment all experiences of the founder",
+                            "properties": {
+                                "sentiment": {
+                                    "type": "string",
+                                    "enum": ["outstanding", "positive", "kinda positive", "neutral", "negative"]
+                                },
+                                "sentiment_reason": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "sentiment",
+                                "sentiment_reason"
+                            ]
+                        },
+                        "global_education": {
+                            "type": "object",
+                            "description": "Global sentiment of all education of the founder",
+                            "properties": {
+                                "sentiment": {
+                                    "type": "string",
+                                    "enum": ["outstanding", "positive", "kinda positive", "neutral", "negative"]
+                                },
+                                "sentiment_reason": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "sentiment",
+                                "sentiment_reason"
+                            ]
+                        },
                     },
                 }
             }
