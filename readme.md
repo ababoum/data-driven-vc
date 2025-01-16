@@ -1,5 +1,11 @@
 # Nontech VC - Data-Driven Investment Analysis Platform
 
+![alt text](https://i.imgur.com/O8vZHPM.png)
+
+> This project was built as part of the Data-Driven VC Hackathon organized by [Red River West](https://redriverwest.com) & [Bivwak! by BNP Paribas](https://bivwak.bnpparibas/)
+
+## Description
+
 A modern web application that performs comprehensive analysis of tech companies using multiple data sources to provide investment insights.
 
 ## Features
@@ -54,11 +60,7 @@ cd data-driven-vc
 ```
 
 2. Set up environment variables:
-Create a `.env` file in the root directory with:
-```env
-HARMONIC_API_KEY=your_harmonic_api_key
-OPENAI_API_KEY=your_openai_api_key
-```
+Based on `.env.template` create a `.env` file in the root directory
 
 3. Install backend dependencies:
 ```bash
@@ -99,6 +101,9 @@ npm run dev
 - `POST /analyze-domain`: Start a new analysis
 - `GET /job/{job_id}`: Get analysis status and results
 - `POST /summarize-step`: Get AI explanation for a step
+
+## TODO
+- Add missing technologies list
 
 ## Contributing
 
