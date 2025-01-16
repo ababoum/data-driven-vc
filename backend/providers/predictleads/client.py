@@ -12,7 +12,6 @@ class PredictleadsClient:
             'X-Api-Key': api_token or os.getenv('PREDICTLEADS_API_KEY'),
             'X-Api-Token': api_key or os.getenv('PREDICTLEADS_API_TOKEN')
         }
-        print(self.headers)
 
     async def fetch_company(self, website_domain: str) -> dict:
         url = f"https://predictleads.com/api/v3/companies/{website_domain}"

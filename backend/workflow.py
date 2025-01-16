@@ -353,6 +353,7 @@ class WebsiteAnalysisWorkflow:
         self.technologies = await analyzer.extract_technologies()
         print('Extracted technologies')
 
+    @memorize()
     async def generate_memo(self):
         print('Generating memo...')
 

@@ -56,35 +56,35 @@ async def process_domain(domain: str, job_id: str):
         
         # Step 1: Founder Analysis
         jobs[job_id].status = "Analyzing founders..."
-        # await asyncio.sleep(1.0)
+        await asyncio.sleep(1.0)
         step_data = await workflow.generate_founders_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
         
         # Step 2: GitHub Analysis
         jobs[job_id].status = "Analyzing GitHub..."
-        # await asyncio.sleep(1.0)
+        await asyncio.sleep(1.0)
         step_data = await workflow.generate_github_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
 
         # Step 3: Code Quality
         jobs[job_id].status = "Analyzing code quality..."
-        # await asyncio.sleep(1.0)
+        await asyncio.sleep(1.0)
         step_data = await workflow.generate_code_quality_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
 
         # Step 4: Competitors
         jobs[job_id].status = "Analyzing competitors..."
-        # await asyncio.sleep(1.0)
+        await asyncio.sleep(1.0)
         step_data = await workflow.generate_competitors_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
         
         # Step 5: Memo
         jobs[job_id].status = "Generating memo..."
-        # await asyncio.sleep(1.0)
+        await asyncio.sleep(1.0)
         step_data = await workflow.generate_memo()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)

@@ -574,7 +574,7 @@ function App() {
                 </Box>
                 {jobStatus && !jobResult && (
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, mb: 4 }}>
-                    {jobStatus === "Analysis complete !" ? (
+                    {jobStatus === "Analysis complete!" ? (
                       <Typography variant="h4" sx={{ color: theme.palette.text.primary }}>
                         😊
                       </Typography>
