@@ -3,11 +3,6 @@ import random
 import uuid
 from datetime import datetime
 from typing import Dict
-<<<<<<< HEAD
-import os
-#from openai import OpenAI
-=======
->>>>>>> 34f2ee2302537c8f5a306b43124d41706c6003ce
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -76,11 +71,12 @@ async def process_domain(domain: str, job_id: str):
         jobs[job_id].step_history.append(step_data)
 
         # Step 4: Founder Analysis
-        
+        harmonic_client = HarmonicClient()
+        company = await harmonic_client.find_company(domain)
         founders = await harmonic_client.get_founders_from_company(company)
         founders_backgrounds = []
         for founder in founders:
-            founder_background = qualify_founder(company, founder, OPENAI_API_KEY)
+            founder_background = qualify_founder(company, founder)
             founders_backgrounds.append(founder_background)
         founders_md = harmonic_client.format_founders_to_md(founders, founders_backgrounds)
         
@@ -303,7 +299,7 @@ async def process_domain(domain: str, job_id: str):
 async def summarize_step(request: StepSummaryRequest):
     # Format the step data into readable text
     formatted_text = format_step_data(request.step_data)
-    summary = await get_gpt_summary(formatted_text, OPENAI_API_KEY)
+    summary = await get_gpt_summary(formatted_text)
     return {"summary": summary}
 
 
