@@ -8,16 +8,37 @@ class PredictleadsClient:
     base_url = 'https://predictleads.com/api/v3'
 
     def __init__(self, api_token: str = None, api_key: str = None):
-        self.auth_params = {
-            'api_token': api_token or os.getenv('PREDICTLEADS_API_TOKEN'),
-            'api_key': api_key or os.getenv('PREDICTLEADS_API_KEY')
+        self.headers = {
+            'X-Api-Key': api_token or os.getenv('PREDICTLEADS_API_KEY'),
+            'X-Api-Token': api_key or os.getenv('PREDICTLEADS_API_TOKEN')
         }
+
+    async def fetch_company(self, website_domain: str) -> dict:
+        url = f"https://predictleads.com/api/v3/companies/{website_domain}"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=self.headers)
+            response.raise_for_status()
+            return response.json()
+
+    async def fetch_technologies(self, website_domain: str) -> dict:
+        url = f"https://predictleads.com/api/v3/companies/{website_domain}/technology_detections?limit=50"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=self.headers)
+            response.raise_for_status()
+            return response.json()
+
+    async def fetch_tech_name(self, tech_id: str) -> dict:
+        url = f"https://predictleads.com/api/v3/technologies/{tech_id}"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=self.headers)
+            response.raise_for_status()
+            return response.json()
 
     async def fetch_github(self, website_domain: str) -> str | None:
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 url=f'{self.base_url}/companies/{website_domain}/github_repositories',
-                params=self.auth_params
+                headers=self.headers
             )
             response.raise_for_status()
             data = response.json()

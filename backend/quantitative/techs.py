@@ -1,12 +1,13 @@
 import json
-import requests
-import dotenv
 import os
 
+import dotenv
+from openai import AsyncOpenAI
+
+from providers.harmonic import HarmonicClient
+from providers.predictleads.client import PredictleadsClient
+
 dotenv.load_dotenv()
-PL_AUTH_KEY = os.getenv("PL_AUTH_KEY")
-PL_AUTH_TOKEN = os.getenv("PL_AUTH_TOKEN")
-HARMONIC_API_KEY = os.getenv("HARMONIC_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
@@ -84,6 +85,10 @@ def oa_sum_technologies(techs: list):
     data = {
         "model": "gpt-3.5-turbo",
         "messages": [
+#async def oa_sum_technologies(techs: list):
+#    response = await AsyncOpenAI().chat.completions.create(
+#        model="gpt-4o-mini",
+#        messages=[
             {
                 "role": "system",
                 "content": "You are a helpful assistant, that knows a lot of technologies used by startups."
@@ -93,20 +98,15 @@ def oa_sum_technologies(techs: list):
                 "content": f"Pick 5 main technologies from the ones listed below. Return the keywords separated by a comma and nothing else. Here are the technologies: {techs}"
             }
         ]
-    }
-    response = requests.post(url, headers=headers, json=data)
-
-    # Check if the request was successful
-    if response.status_code == 200:
-        return response.json()['choices'][0]['message']['content']
-    else:
-        print("Error:", response.status_code, response.text)
+    )
+    return response.choices[0].message.content
 
 
-def get_techs(domain_name):
+async def get_techs(domain_name: str):
     ret = dict()
-    h_company = h_get_company(domain_name)
-    pl_company = pl_get_company(domain_name)["data"][0]["attributes"]
+    pl_client = PredictleadsClient()
+    h_company = await HarmonicClient().find_company(domain_name)
+    pl_company = (await pl_client.fetch_company(domain_name))["data"][0]["attributes"]
     
     ret["company_name"] = pl_company["company_name"]
     ret["title"] = pl_company["meta_title"]
@@ -121,27 +121,28 @@ def get_techs(domain_name):
             ret["main_techs"].append(item["display_value"])
             
     ret["specific_techs"] = []
-    techs = pl_get_technologies(domain_name)
+    techs = await pl_client.fetch_technologies(domain_name)
     tech_names = []
     tech_ids = [tech['relationships']['technology']['data']['id']
                 for tech in techs.get("data", [])]
     for tech_id in tech_ids:
-        tech_name = pl_get_tech_name(tech_id)
+        tech_name = await pl_client.fetch_tech_name(tech_id)
         tech_names.append(tech_name["data"][0]["attributes"]["name"])
     
-    ret["specific_techs"] = oa_sum_technologies(tech_names).split(", ")
+    ret["specific_techs"] = (await oa_sum_technologies(tech_names)).split(", ")
     return json.dumps(ret)
     
 
-if __name__ == "__main__":
+async def main():
     try:
         domain = "stripe.com"
-        
-        print(get_techs(domain))
+
+        print(await get_techs(domain))
         exit()
 
-        h_company = h_get_company(domain)
-        pl_company = pl_get_company(domain)["data"][0]["attributes"]
+        pl_client = PredictleadsClient()
+        h_company = await HarmonicClient().find_company(domain)
+        pl_company = (await pl_client.fetch_company(domain))["data"][0]["attributes"]
 
         print(pl_company["company_name"])
         print(pl_company["meta_title"])
@@ -160,16 +161,21 @@ if __name__ == "__main__":
 
         print("Specific technologies used by the company:")
 
-        techs = pl_get_technologies(domain)
+        techs = await pl_client.fetch_technologies(domain)
         tech_ids = [tech['relationships']['technology']['data']['id']
                     for tech in techs.get("data", [])]
         list_of_techs = []
         for tech_id in tech_ids:
-            tech_name = pl_get_tech_name(tech_id)
+            tech_name = await pl_client.fetch_tech_name(tech_id)
             # list_of_techs += tech_name["data"][0]["attributes"]["categories"]
             list_of_techs += [tech_name["data"][0]["attributes"]["name"]]
 
-        oa_sum_technologies(list_of_techs)
+        await oa_sum_technologies(list_of_techs)
 
     except Exception as e:
         print(f"An error occurred: {e}")
+
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
