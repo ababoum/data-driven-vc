@@ -3,14 +3,22 @@ import random
 import uuid
 from datetime import datetime
 from typing import Dict
+import os
+
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 from quantitative.techs import get_techs
 from providers.harmonic.client import HarmonicClient
+from qualitative.founders import qualify_founder
 
 from models import DomainRequest, StepSummaryRequest, JobResponse, JobStatus
+from dotenv import load_dotenv
+
+load_dotenv("../.env", override=True)
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # In-memory job store
 jobs: Dict[str, JobStatus] = {}
@@ -56,8 +64,13 @@ def format_step_data(step_data: dict) -> str:
 async def get_gpt_summary(text: str) -> str:
     """Get summary from ChatGPT."""
     try:
+        #return api_key
+        if not OPENAI_API_KEY:
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+            
+        client = OpenAI(api_key=OPENAI_API_KEY)
         prompt = f"Explain this to me in details in markdown format by always keeping your answer objective and concise and by assuming I'm a VC who doesn't know anything about tech (Always try to comment on how it could be a pro or a con in the context of a future investment): {text}"
-        client = OpenAI()
+        
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -79,25 +92,35 @@ async def process_domain(domain: str, job_id: str):
         company = await harmonic_client.find_company(domain)
         competitors = await harmonic_client.get_competitors(domain)
         md_competitors = harmonic_client.format_companies_to_md(competitors)
-        outliers_good = harmonic_client.find_outliers(company, competitors, 0.2)
-        outliers_bad = harmonic_client.find_outliers(company, competitors, 0.5)
+        outliers_good, importance_good = harmonic_client.find_outliers(company, competitors, 0.2)
+        outliers_bad, importance_bad = harmonic_client.find_outliers(company, competitors, 0.5)
         
         # Calculate performance based on whether the company is in outliers
         performance = -1  # Default performance
         if any(outlier.get('entity_urn') == company.get('entity_urn') for outlier in outliers_good):
             performance = 1
             performance_comment = "This company outperforms its competitors !"
+            importance = importance_good
         elif any(outlier.get('entity_urn') == company.get('entity_urn') for outlier in outliers_bad):
             performance = 0
             performance_comment = "This company shows average performance compared to competitors"
+            importance = importance_bad
         else:
             performance_comment = "This company underperforms compared to its competitors"
+            importance = importance_bad
+            
+        # Format the importance metrics for display
+        importance_md = ""
+        for metric, value in sorted(importance.items(), key=lambda x: x[1], reverse=True):
+            formatted_metric = metric.replace('_', ' ').title()
+            importance_md += f"- **{formatted_metric}**: {value}% impact on the analysis\n"
             
         step_data = {
             "step": 1,
             "competitors": md_competitors,
             "overperformers": [company["name"] for company in outliers_good],
             "performance_comment": performance_comment,
+            "importance_metrics": importance_md,
             "_performance": performance,
             "calculation_explanation": """The competitor analysis is performed using multiple data points and sophisticated algorithms:
 
@@ -119,7 +142,7 @@ async def process_domain(domain: str, job_id: str):
    - Others are considered average performers (yellow)
 
 4. Final Score Calculation:
-   - Each metric is weighted based on its importance
+   - Each metric is weighted based on its importance (shown in Key Metrics Impact)
    - Growth metrics are given higher weight than absolute numbers
    - Recent performance is weighted more heavily than historical data"""
         }
@@ -230,10 +253,14 @@ Each factor is scored individually and weighted based on industry standards and 
         await asyncio.sleep(1)
 
         # Step 4: Competitor Analysis
+        
+        founders = await harmonic_client.get_founders_from_company(company)
+        founders_md = harmonic_client.format_founders_to_md(founders)
+        founder_1_background = qualify_founder(company, founders[1], OPENAI_API_KEY)
         step_data = {
             "step": 4,
-            "market_size": f"${random.randint(1, 100)}B",
-            "competitors": random.randint(5, 20),
+            "market_size": founders_md,
+            "competitors": str(founder_1_background),
             "market_growth": f"{random.randint(5, 30)}% YoY"
         }
         jobs[job_id].status = "Analyzing market position..."
@@ -245,7 +272,7 @@ Each factor is scored individually and weighted based on industry standards and 
         step_data = {
             "step": 5,
             "market_size": f"${random.randint(1, 100)}B",
-            "competitors": random.randint(5, 20),
+            "competitors": founder_1_background,
             "market_growth": f"{random.randint(5, 30)}% YoY"
         }
         jobs[job_id].status = "Analyzing market position..."

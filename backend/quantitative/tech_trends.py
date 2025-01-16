@@ -66,8 +66,7 @@ def get_trends(tech_name):
                   datetime.timedelta(days=395)).strftime("%Y-%m")
     end_date = (datetime.datetime.now() -
                 datetime.timedelta(days=30)).strftime("%Y-%m")
-    url = f"https://api.similarweb.com/v1/website/{domain}/total-traffic-and-engagement/visits?api_key={SIMILARWEB_API_KEY}&start_date={
-        start_date}&end_date={end_date}&country=world&granularity=monthly&main_domain_only=false&format=json&show_verified=false&mtd=false&engaged_only=false"
+    url = f"https://api.similarweb.com/v1/website/{domain}/total-traffic-and-engagement/visits?api_key={SIMILARWEB_API_KEY}&start_date={start_date}&end_date={end_date}&country=world&granularity=monthly&main_domain_only=false&format=json&show_verified=false&mtd=false&engaged_only=false"
 
     headers = {
         "Accept": "application/json"

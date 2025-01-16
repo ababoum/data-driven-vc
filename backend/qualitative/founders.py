@@ -3,12 +3,10 @@ import json
 from openai import OpenAI
 import os
 
-openai_client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
-
 def wrap_triple_quotes(text: str):
     return f"```\n{text}\n```"
 
-def enhance_founder_background(company_prompt: str = None, experience_prompt: str = None, education_prompt: str = None, tags_prompt: str = None):
+def enhance_founder_background(company_prompt: str = None, experience_prompt: str = None, education_prompt: str = None, tags_prompt: str = None, openai_client: str = None):
     messages = [
         {"role": "developer", "content": "You are a VC analyst, your role is to investigate and rationalize an investment decision on a company. To do so, you have to qualify each experience and education of the current startup founder. Given the startup description, tags and experience and education background of the founder."},
         {"role": "user", "content": f"""
@@ -128,8 +126,10 @@ def enhance_founder_background(company_prompt: str = None, experience_prompt: st
         print(e)
 
 
-def qualify_founder(company: any = None, founder: any = None):
+def qualify_founder(company: any = None, founder: any = None, api_key: str = None):
     tags_prompt: str = ''
+    
+    openai_client = OpenAI(api_key=api_key)
 
     if 'tags_v2' in company:
         tags_prompt = ''
@@ -207,4 +207,4 @@ startup description:
 """
 
     # print(company_prompt, experience_prompt, education_prompt, tags_prompt)
-    return enhance_founder_background(company_prompt=company_prompt, experience_prompt=experience_prompt, education_prompt=education_prompt, tags_prompt=tags_prompt)
+    return enhance_founder_background(company_prompt=company_prompt, experience_prompt=experience_prompt, education_prompt=education_prompt, tags_prompt=tags_prompt, openai_client=openai_client)
