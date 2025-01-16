@@ -35,7 +35,7 @@ function formatStepDataToMarkdown(data: StepData): string {
   let markdown = `## ${data._title || 'Analysis Step'}\n\n`;
 
   Object.entries(data)
-    .filter(([key]) => !['step', '_performance', 'calculation_explanation'].includes(key))
+    .filter(([key]) => !['step', '_performance', 'calculation_explanation', '_title'].includes(key))
     .forEach(([key, value]) => {
       const formattedKey = key.split('_').map(word => 
         word.charAt(0).toUpperCase() + word.slice(1)
