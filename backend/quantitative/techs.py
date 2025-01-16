@@ -63,7 +63,7 @@ async def get_techs(domain_name: str):
 
 
 async def get_all_techs_with_trends(domain_name):
-    techs_list = get_techs(domain_name)
+    techs_list = await get_techs(domain_name)
     specific_techs = techs_list["specific_techs"]
     techs_list["specific_techs"] = list()
     for tech in specific_techs:
