@@ -48,111 +48,25 @@ def format_step_data(step_data: dict) -> str:
 
 async def process_domain(domain: str, job_id: str):
     try:
-        harmonic_client = HarmonicClient()
-        # Step 1: Competitors
-        company = await harmonic_client.find_company(domain)
-        competitors = await harmonic_client.get_competitors(domain)
-        md_competitors = harmonic_client.format_companies_to_md(competitors)
-        outliers_good = harmonic_client.find_outliers(company, competitors, 0.2)
-        outliers_bad = harmonic_client.find_outliers(company, competitors, 0.5)
-        
-        # Calculate performance based on whether the company is in outliers
-        performance = -1  # Default performance
-        if any(outlier.get('entity_urn') == company.get('entity_urn') for outlier in outliers_good):
-            performance = 1
-            performance_comment = "This company outperforms its competitors !"
-        elif any(outlier.get('entity_urn') == company.get('entity_urn') for outlier in outliers_bad):
-            performance = 0
-            performance_comment = "This company shows average performance compared to competitors"
-        else:
-            performance_comment = "This company underperforms compared to its competitors"
-            
-        step_data = {
-            "step": 1,
-            "_title": "Competitors Analysis",
-            "competitors": md_competitors,
-            "overperformers": [company["name"] for company in outliers_good],
-            "performance_comment": performance_comment,
-            "_performance": performance,
-            "calculation_explanation": """The competitor analysis is performed using multiple data points and sophisticated algorithms:
-
-1. Company Identification:
-   - First, we identify direct and indirect competitors using the Harmonic API
-   - Companies are matched based on industry, market segment, and business model
-
-2. Performance Metrics:
-   - Headcount growth rate and current size
-   - Funding history and total raised amount
-   - Market presence and geographic expansion
-   - Customer base and market share
-
-3. Outlier Detection:
-   - We use an Isolation Forest algorithm to detect companies that significantly deviate from the norm
-   - The algorithm considers multiple dimensions simultaneously
-   - Companies in the top 20% are marked as overperformers (green)
-   - Companies in the bottom 50% are marked as underperformers (red)
-   - Others are considered average performers (yellow)
-
-4. Final Score Calculation:
-   - Each metric is weighted based on its importance
-   - Growth metrics are given higher weight than absolute numbers
-   - Recent performance is weighted more heavily than historical data"""
-        }
-        jobs[job_id].status = "Analyzing competitors..."
-        jobs[job_id].current_step_data = step_data
-        jobs[job_id].step_history.append(step_data)
-        await asyncio.sleep(1)
-
-        # Step 2: GitHub Analysis
         workflow = WebsiteAnalysisWorkflow(domain)
 
-        jobs[job_id].status = "Analyzing GitHub..."
-        report, performance = await workflow.generate_github_report()
-        performance_comment = {
-            1: "Strong repository activity and community engagement",
-            0: "Average repository performance and community engagement",
-            -1: "Weak repository activity and community engagement"
-        }[performance]
-        
-        step_data = {
-            "step": 2,
-            "_title": "GitHub Metrics Analysis",
-            "Metrics": report,
-            "_performance": performance,
-            "performance_comment": performance_comment,
-            "calculation_explanation": """
-1. **Stars Growth Rate**: Reflects repository **popularity** over time.  
-2. **Forks Count**: Shows **external interest** in adapting or contributing to the code.  
-3. **Commit Frequency**: Indicates **active development** and maintenance.  
-4. **Contributors Count**: Highlights **team/community engagement**.  
-5. **Issue Resolution Time**: Measures **responsiveness** to bugs and requests.  
-            """
-        }
-
+        # Step 1: Competitors
+        jobs[job_id].status = "Analyzing competitors..."
+        step_data = await workflow.generate_competitors_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
-        await asyncio.sleep(1)
+
+        # Step 2: GitHub Analysis
+        jobs[job_id].status = "Analyzing GitHub..."
+        step_data = await workflow.generate_github_report()
+        jobs[job_id].current_step_data = step_data
+        jobs[job_id].step_history.append(step_data)
 
         # Step 3: Code Quality
         jobs[job_id].status = "Analyzing code quality..."
-        report, performance = await workflow.generate_code_quality_report()
-        performance_comment = {
-            1: "Great code quality and documentation",
-            0: "Average code quality and documentation",
-            -1: "Weak code quality and documentation"
-        }[performance]
-
-        step_data = {
-            "step": 3,
-            "_title": "Code Quality Analysis",
-            "Report": report,
-            "_performance": performance,
-            "performance_comment": performance_comment,
-        }
-
+        step_data = await workflow.generate_code_quality_report()
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
-        await asyncio.sleep(1)
 
         # Step 4: Competitor Analysis
         step_data = {
