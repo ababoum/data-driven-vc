@@ -46,17 +46,28 @@ class WebsiteAnalysisWorkflow:
         company = await harmonic_client.find_company(self.domain)
         competitors = await harmonic_client.get_competitors(self.domain)
         md_competitors = harmonic_client.format_companies_to_md(competitors)
-        outliers_good = harmonic_client.find_outliers(company, competitors, 0.2)
-        outliers_bad = harmonic_client.find_outliers(company, competitors, 0.5)
+        outliers_good, importance_good = harmonic_client.find_outliers(company, competitors, 0.2)
+        outliers_bad, importance_bad = harmonic_client.find_outliers(company, competitors, 0.5)
+
+        # Calculate performance based on whether the company is in outliers
         performance = -1  # Default performance
         if any(outlier.get('entity_urn') == company.get('entity_urn') for outlier in outliers_good):
             performance = 1
             performance_comment = "This company outperforms its competitors !"
+            importance = importance_good
         elif any(outlier.get('entity_urn') == company.get('entity_urn') for outlier in outliers_bad):
             performance = 0
             performance_comment = "This company shows average performance compared to competitors"
+            importance = importance_bad
         else:
             performance_comment = "This company underperforms compared to its competitors"
+            importance = importance_bad
+
+        # Format the importance metrics for display
+        importance_md = ""
+        for metric, value in sorted(importance.items(), key=lambda x: x[1], reverse=True):
+            formatted_metric = metric.replace('_', ' ').title()
+            importance_md += f"- **{formatted_metric}**: {value}% impact on the analysis\n"
 
         step_data = {
             "step": 1,
@@ -64,6 +75,7 @@ class WebsiteAnalysisWorkflow:
             "competitors": md_competitors,
             "overperformers": [company["name"] for company in outliers_good],
             "performance_comment": performance_comment,
+            "importance_metrics": importance_md,
             "_performance": performance,
             "calculation_explanation": """The competitor analysis is performed using multiple data points and sophisticated algorithms:
 
@@ -85,7 +97,7 @@ class WebsiteAnalysisWorkflow:
            - Others are considered average performers (yellow)
 
         4. Final Score Calculation:
-           - Each metric is weighted based on its importance
+           - Each metric is weighted based on its importance (shown in Key Metrics Impact)
            - Growth metrics are given higher weight than absolute numbers
            - Recent performance is weighted more heavily than historical data"""
         }
@@ -125,7 +137,7 @@ class WebsiteAnalysisWorkflow:
             performance = -1
         else:
             analyzer = CodeQualityAnalyzer(self.gh_analyzer.owner, self.gh_analyzer.repo)
-            analyzer.run_analysis()
+            await asyncio.to_thread(analyzer.run_analysis)
             self.code_report = analyzer.report
             performance = analyzer.color
             report = analyzer.report

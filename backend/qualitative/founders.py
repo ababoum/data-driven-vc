@@ -1,12 +1,11 @@
 from collections import defaultdict
 import json
 from openai import OpenAI
-import os
 
 def wrap_triple_quotes(text: str):
     return f"```\n{text}\n```"
 
-def enhance_founder_background(company_prompt: str = None, experience_prompt: str = None, education_prompt: str = None, tags_prompt: str = None, openai_client: str = None):
+def enhance_founder_background(company_prompt: str = None, experience_prompt: str = None, education_prompt: str = None, tags_prompt: str = None):
     messages = [
         {"role": "developer", "content": "You are a VC analyst, your role is to investigate and rationalize an investment decision on a company. To do so, you have to qualify each experience and education of the current startup founder. Given the startup description, tags and experience and education background of the founder."},
         {"role": "user", "content": f"""
@@ -17,7 +16,7 @@ def enhance_founder_background(company_prompt: str = None, experience_prompt: st
 """}
     ]
 
-    response = openai_client.chat.completions.create(
+    response = OpenAI().chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
         response_format={
@@ -177,10 +176,8 @@ def enhance_founder_background(company_prompt: str = None, experience_prompt: st
         print(e)
 
 
-def qualify_founder(company: any = None, founder: any = None, api_key: str = None):
+def qualify_founder(company: any = None, founder: any = None):
     tags_prompt: str = ''
-    
-    openai_client = OpenAI(api_key=api_key)
 
     if 'tags_v2' in company:
         tags_prompt = ''
@@ -224,10 +221,9 @@ end date: {end_date}
 {wrap_triple_quotes(education_prompt)}
 """
 
+    experience_prompt = ''
     if 'experience' in founder:
         experiences = founder.get('experience')
-
-        experience_prompt = ''
 
         for experience in experiences:
             title = experience.get('title')
@@ -258,4 +254,4 @@ startup description:
 """
 
     # print(company_prompt, experience_prompt, education_prompt, tags_prompt)
-    return enhance_founder_background(company_prompt=company_prompt, experience_prompt=experience_prompt, education_prompt=education_prompt, tags_prompt=tags_prompt, openai_client=openai_client)
+    return enhance_founder_background(company_prompt=company_prompt, experience_prompt=experience_prompt, education_prompt=education_prompt, tags_prompt=tags_prompt)

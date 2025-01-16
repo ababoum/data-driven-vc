@@ -51,7 +51,7 @@ def format_step_data(step_data: dict) -> str:
 
 async def process_domain(domain: str, job_id: str):
     try:
-        harmonic_client = HarmonicClient()
+        workflow = WebsiteAnalysisWorkflow(domain)
         # Step 1: Competitors
         jobs[job_id].status = "Analyzing competitors..."
         step_data = await workflow.generate_competitors_report()
@@ -70,21 +70,22 @@ async def process_domain(domain: str, job_id: str):
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
 
-        # Step 4: Competitor Analysis
-
+        # Step 4: Founders Analysis
+        jobs[job_id].status = "Analyzing founders..."
+        harmonic_client = HarmonicClient()
+        company = await harmonic_client.find_company(domain)
         founders = await harmonic_client.get_founders_from_company(company)
         founders_md = harmonic_client.format_founders_to_md(founders)
-        founder_1_background = qualify_founder(company, founders[1], OPENAI_API_KEY)
+        founder_1_background = qualify_founder(company, founders[1])
         step_data = {
             "step": 4,
+            "_title": "Founders Analysis",
             "market_size": founders_md,
             "competitors": str(founder_1_background),
             "market_growth": f"{random.randint(5, 30)}% YoY"
         }
-        jobs[job_id].status = "Analyzing market position..."
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
-        await asyncio.sleep(1)
 
         # Step 5: Key People
         step_data = {
