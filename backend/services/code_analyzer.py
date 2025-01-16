@@ -33,13 +33,13 @@ class CodeQualityAnalyzer:
 
     def download_repo(self):
         """Clones a GitHub repository using git."""
-
-        # Remove the local path if it already exists to avoid conflicts
-        self.clear_local_path()
-
-        # Use git clone to download the repository
-        repo_url = f'https://github.com/{self.owner}/{self.repo}'
         try:
+            # Remove the local path if it already exists to avoid conflicts
+            self.clear_local_path()
+
+            # Use git clone to download the repository
+            repo_url = f'https://github.com/{self.owner}/{self.repo}'
+
             subprocess.run(["git", "clone", repo_url, self.local_path], check=True)
             logger.info(f"Repository cloned successfully to {self.local_path}")
             return True

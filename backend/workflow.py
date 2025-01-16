@@ -1,5 +1,6 @@
 import json
 import re
+import asyncio
 from urllib.parse import urlparse
 
 from openai import AsyncOpenAI
@@ -132,30 +133,40 @@ class WebsiteAnalysisWorkflow:
         return step_data
 
     async def generate_code_quality_report(self) -> dict:
-        if not self.gh_analyzer.owner:
-            report = 'No GitHub repository found.'
-            performance = -1
-        else:
-            analyzer = CodeQualityAnalyzer(self.gh_analyzer.owner, self.gh_analyzer.repo)
-            await asyncio.to_thread(analyzer.run_analysis)
-            self.code_report = analyzer.report
-            performance = analyzer.color
-            report = analyzer.report
+        try:
+            if not self.gh_analyzer.owner:
+                report = 'No GitHub repository found.'
+                performance = -1
+            else:
+                analyzer = CodeQualityAnalyzer(self.gh_analyzer.owner, self.gh_analyzer.repo)
+                await asyncio.to_thread(analyzer.run_analysis)
+                self.code_report = analyzer.report
+                performance = analyzer.color
+                report = analyzer.report
 
-        performance_comment = {
-            1: "Great code quality and documentation",
-            0: "Average code quality and documentation",
-            -1: "Weak code quality and documentation"
-        }[performance]
+            performance_comment = {
+                1: "Great code quality and documentation",
+                0: "Average code quality and documentation", 
+                -1: "Weak code quality and documentation"
+            }[performance]
 
-        step_data = {
-            "step": 3,
-            "_title": "Code Quality Analysis",
-            "Report": report,
-            "_performance": performance,
-            "performance_comment": performance_comment,
-        }
-        return step_data
+            step_data = {
+                "step": 3,
+                "_title": "Code Quality Analysis", 
+                "Report": report,
+                "_performance": performance,
+                "performance_comment": performance_comment,
+            }
+            return step_data
+            
+        except Exception as e:
+            return {
+                "step": 3,
+                "_title": "Code Quality Analysis",
+                "Report": f"Error analyzing code quality: Access to GitHub repository denied",
+                "_performance": 0,
+                "performance_comment": "Analysis failed"
+            }
 
     async def fetch_employees_experience(self):
         print('Fetching employees experience...')
