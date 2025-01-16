@@ -262,109 +262,79 @@ function App() {
 
         <Collapse in={isExpanded}>
           <div className="markdown-body max-w-2xl w-full overflow-x-hidden">
-            <style>{`
-              .markdown-body {
-                color: ${theme.palette.text.primary} !important;
-                background-color: transparent !important;
-                text-align: left !important;
-              }
-              .katex-display {
-                display: block;
-                overflow-x: auto;
-                max-width: 100%;
-                white-space: nowrap;
-              }
-            `}</style>
-
-            <Markdown
-              components={{
-                ol: ({ ...props }) => <ol style={{ listStyle: "revert" }} {...props} />,
-                ul: ({ ...props }) => <ul style={{ listStyle: "revert" }} {...props} />,
-              }}
+            <Markdown 
               remarkPlugins={[remarkMath, remarkGfm]}
               rehypePlugins={[rehypeKatex]}
             >
               {formatStepDataToMarkdown(data)}
             </Markdown>
-          </div>
 
-          {hasSummary && (
-            <Box sx={{ 
-              mt: 3, 
-              p: 2, 
-              borderRadius: 1,
-              backgroundColor: mode === 'dark' ? 'rgba(88, 166, 255, 0.1)' : 'rgba(25, 118, 210, 0.08)',
-            }}>
-              <Typography variant="h6" gutterBottom color="primary">
-                Summary
-              </Typography>
-              <Markdown
-                remarkPlugins={[remarkMath, remarkGfm]}
-                rehypePlugins={[rehypeKatex]}
-              >
-                {stepSummaries[data.step]}
-              </Markdown>
-            </Box>
-          )}
-
-          <Box sx={{ mt: 3 }}>
-            <Button
-              onClick={() => toggleStep(data.step + '_explanation')}
-              sx={{
-                color: theme.palette.text.secondary,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                '&:hover': {
-                  backgroundColor: mode === 'dark' ? 'rgba(88, 166, 255, 0.1)' : 'rgba(25, 118, 210, 0.08)',
-                }
-              }}
-            >
-              <ExpandMoreIcon 
-                sx={{ 
-                  transform: isExplanationExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
-                  transition: 'transform 0.3s ease',
-                }}
-              />
-              <Typography variant="body2">
-                How was this result calculated?
-              </Typography>
-            </Button>
-            <Collapse in={isExplanationExpanded}>
-              <Box sx={{ 
-                mt: 1,
-                p: 2,
-                borderRadius: 1,
-                backgroundColor: mode === 'dark' ? 'rgba(110,118,129,0.1)' : 'rgba(175,184,193,0.1)',
-              }}>
-                <Typography variant="body2" color="text.secondary">
-                  {data.calculation_explanation || "This step's results are calculated by analyzing various data points and comparing them against industry standards and competitor benchmarks."}
-                </Typography>
-              </Box>
-            </Collapse>
-
-            {!hasSummary && (
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-                <Tooltip title="Generate AI Summary" placement="left" arrow>
-                  <IconButton 
-                    onClick={() => handleSummarize(data)}
-                    color="primary"
-                    disabled={isLoading}
-                    sx={{ 
-                      backgroundColor: mode === 'dark' ? 'rgba(88, 166, 255, 0.1)' : 'rgba(25, 118, 210, 0.08)',
-                      transition: 'all 0.2s ease',
-                      '&:hover': {
-                        transform: 'scale(1.1)',
-                        backgroundColor: mode === 'dark' ? 'rgba(88, 166, 255, 0.2)' : 'rgba(25, 118, 210, 0.16)',
-                      }
+            {data.calculation_explanation && (
+              <>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 3, mb: 2 }}>
+                  <IconButton
+                    onClick={() => toggleStep(`${data.step}_explanation`)}
+                    sx={{
+                      transform: isExplanationExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                      transition: 'transform 0.3s ease',
                     }}
                   >
-                    {isLoading ? <CircularProgress size={24} /> : <AutoFixHighIcon />}
+                    <ExpandMoreIcon />
                   </IconButton>
-                </Tooltip>
+                  <Typography variant="h6" color="text.primary">
+                    How was this result calculated?
+                  </Typography>
+                </Box>
+                <Collapse in={isExplanationExpanded}>
+                  <Box sx={{ pl: 4 }}>
+                    <Markdown
+                      remarkPlugins={[remarkMath, remarkGfm]}
+                      rehypePlugins={[rehypeKatex]}
+                    >
+                      {data.calculation_explanation}
+                    </Markdown>
+                  </Box>
+                </Collapse>
+              </>
+            )}
+
+            {!hasSummary && !isLoading && (
+              <Box sx={{ mt: 2 }}>
+                <Button
+                  startIcon={<AutoFixHighIcon />}
+                  onClick={() => handleSummarize(data)}
+                  variant="outlined"
+                  sx={{
+                    borderColor: theme.palette.text.primary,
+                    color: theme.palette.text.primary,
+                    '&:hover': {
+                      borderColor: theme.palette.text.secondary,
+                      backgroundColor: mode === 'dark' ? 'rgba(88, 166, 255, 0.1)' : 'rgba(74, 74, 74, 0.1)',
+                    },
+                  }}
+                >
+                  Explain this to me
+                </Button>
               </Box>
             )}
-          </Box>
+
+            {isLoading && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <CircularProgress size={24} />
+              </Box>
+            )}
+
+            {hasSummary && (
+              <Box sx={{ mt: 2, p: 2, backgroundColor: mode === 'dark' ? '#1c2128' : '#f6f8fa', borderRadius: 1 }}>
+                <Markdown
+                  remarkPlugins={[remarkMath, remarkGfm]}
+                  rehypePlugins={[rehypeKatex]}
+                >
+                  {stepSummaries[data.step]}
+                </Markdown>
+              </Box>
+            )}
+          </div>
         </Collapse>
       </Paper>
     );
@@ -539,14 +509,30 @@ function App() {
                               return title + `${step.performance_comment}\nMarket Size: ${step.market_size}\nGrowth: ${step.market_growth}`;
                             case 3:
                               return title + `${step.performance_comment}\nMarket Position: ${step.market_position || 'N/A'}`;
+                            case 4:
+                              return title + `${step.performance_comment}`;
+                            case 5:
+                              return title + `${step.performance_comment || 'Key People Analysis'}`;
+                            case 6:
+                              return title + `${step.performance_comment || 'Market Analysis'}\nMarket Size: ${step.market_size}`;
                             case 7:
                               return title + `Revenue: ${step.revenue_range}\nBurn Rate: ${step.burn_rate}`;
                             case 8:
                               return title + `Team Size: ${step.team_size}\nTech Ratio: ${step.technical_ratio}`;
                             case 9:
                               return title + `Stack: ${step.infrastructure}\nLanguages: ${step.main_languages}`;
+                            case 10:
+                              return title + `${step.performance_comment || 'Growth Metrics'}\nUser Growth: ${step.user_growth}`;
+                            case 11:
+                              return title + `${step.performance_comment || 'Risk Assessment'}\nRisk Score: ${step.risk_score}`;
+                            case 12:
+                              return title + `${step.performance_comment || 'Market Sentiment'}\nSentiment Score: ${step.sentiment_score}`;
+                            case 13:
+                              return title + `${step.performance_comment || 'Competitive Analysis'}\nMarket Position: ${step.market_position}`;
+                            case 14:
+                              return title + `${step.performance_comment || 'Final Score'}\nScore: ${step.final_score}`;
                             default:
-                              return title;
+                              return title + (step.performance_comment || '');
                           }
                         };
 
@@ -561,9 +547,6 @@ function App() {
                               return mode === 'dark' ? '#d29922' : '#d4a72c';  // Yellow
                           }
                         };
-
-                        // Only show important steps in overview
-                        if (![1, 2, 3, 7, 8, 9].includes(step.step)) return null;
 
                         return (
                           <Tooltip 

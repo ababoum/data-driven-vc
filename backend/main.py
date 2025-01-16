@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Dict
 import os
-
+#from openai import OpenAI
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -174,39 +174,99 @@ async def process_domain(domain: str, job_id: str):
         jobs[job_id].step_history.append(step_data)
         await asyncio.sleep(1)
 
-        # Step 3: Code Quality
-        jobs[job_id].status = "Analyzing code quality..."
-        report, performance = await workflow.generate_code_quality_report()
-        performance_comment = {
-            1: "Great code quality and documentation",
-            0: "Average code quality and documentation",
-            -1: "Weak code quality and documentation"
-        }[performance]
+        ## Step 3: Code Quality
+        #jobs[job_id].status = "Analyzing code quality..."
+        #report, performance = await workflow.generate_code_quality_report()
+        #performance_comment = {
+        #    1: "Great code quality and documentation",
+        #    0: "Average code quality and documentation",
+        #    -1: "Weak code quality and documentation"
+        #}[performance]
+#
+        #step_data = {
+        #    "step": 3,
+        #    "_title": "Code Quality Analysis",
+        #    "Report": report,
+        #    "_performance": performance,
+        #    "performance_comment": performance_comment,
+        #}
+#
+        #jobs[job_id].current_step_data = step_data
+        #jobs[job_id].step_history.append(step_data)
+        #await asyncio.sleep(1)
 
-        step_data = {
-            "step": 3,
-            "_title": "Code Quality Analysis",
-            "Report": report,
-            "_performance": performance,
-            "performance_comment": performance_comment,
-        }
-
-        jobs[job_id].current_step_data = step_data
-        jobs[job_id].step_history.append(step_data)
-        await asyncio.sleep(1)
-
-        # Step 4: Competitor Analysis
+        # Step 4: Founder Analysis
         
         founders = await harmonic_client.get_founders_from_company(company)
-        founders_md = harmonic_client.format_founders_to_md(founders)
-        founder_1_background = qualify_founder(company, founders[1], OPENAI_API_KEY)
+        founders_backgrounds = []
+        for founder in founders:
+            founder_background = qualify_founder(company, founder, OPENAI_API_KEY)
+            founders_backgrounds.append(founder_background)
+        founders_md = harmonic_client.format_founders_to_md(founders, founders_backgrounds)
+        
+        # Calculate performance based on founders' sentiments
+        sentiment_scores = {
+            'outstanding': 1,
+            'positive': 0.5,
+            'neutral': 0,
+            'negative': -0.5,
+            'concerning': -1
+        }
+        
+        total_score = 0
+        for background in founders_backgrounds:
+            if background and background.get('global', {}).get('sentiment'):
+                total_score += sentiment_scores.get(background['global']['sentiment'].lower(), 0)
+        
+        # Calculate average and determine performance
+        avg_score = total_score / len(founders_backgrounds) if founders_backgrounds else 0
+        performance = 1 if avg_score > 0.5 else (-1 if avg_score < -0.25 else 0)
+        
+        # Generate performance comment based on score
+        if performance == 1:
+            performance_comment = "Exceptional founding team with outstanding backgrounds and highly relevant experience"
+        elif performance == 0:
+            performance_comment = "Solid founding team with good experience and relevant backgrounds"
+        else:
+            performance_comment = "Founding team shows some areas of concern that may need further evaluation"
+        
         step_data = {
             "step": 4,
-            "market_size": founders_md,
-            "competitors": str(founder_1_background),
-            "market_growth": f"{random.randint(5, 30)}% YoY"
+            "_title": "Founder Analysis",
+            "founders": founders_md,
+            "_performance": performance,
+            "performance_comment": performance_comment,
+            "calculation_explanation": """The founder analysis is performed through a comprehensive evaluation of multiple factors:
+
+1. Overall Assessment:
+   - Each founder's background is analyzed for their experience, education, and achievements
+   - Sentiment analysis is performed on their background (Outstanding, Positive, Neutral, Negative, or Concerning)
+   - The analysis considers the relevance of their experience to the current venture
+
+2. Educational Background:
+   - Quality and prestige of educational institutions
+   - Relevance of degrees to the company's domain
+   - Additional certifications and specialized training
+
+3. Professional Experience:
+   - Previous founding experience and exits
+   - Industry-relevant positions and achievements
+   - Leadership roles and responsibilities
+   - Track record of success in similar domains
+
+4. Final Score Calculation:
+   - Each founder's sentiment is converted to a numerical score:
+     * Outstanding = 1.0
+     * Positive = 0.5
+     * Neutral = 0.0
+     * Negative = -0.5
+     * Concerning = -1.0
+   - The average score across all founders determines the final performance:
+     * High Performance (Green): Average score > 0.5
+     * Average Performance (Yellow): Average score between -0.25 and 0.5
+     * Concerning Performance (Red): Average score < -0.25"""
         }
-        jobs[job_id].status = "Analyzing market position..."
+        jobs[job_id].status = "Analyzing founders..."
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
         await asyncio.sleep(1)
@@ -216,7 +276,7 @@ async def process_domain(domain: str, job_id: str):
             "step": 5,
             "_title": "TODO",
             "market_size": f"${random.randint(1, 100)}B",
-            "competitors": founder_1_background,
+            "competitors": "f",
             "market_growth": f"{random.randint(5, 30)}% YoY"
         }
         jobs[job_id].status = "Analyzing market position..."
@@ -366,7 +426,7 @@ async def process_domain(domain: str, job_id: str):
 async def summarize_step(request: StepSummaryRequest):
     # Format the step data into readable text
     formatted_text = format_step_data(request.step_data)
-    summary = await get_gpt_summary(formatted_text)
+    summary = await get_gpt_summary(formatted_text, OPENAI_API_KEY)
     return {"summary": summary}
 
 

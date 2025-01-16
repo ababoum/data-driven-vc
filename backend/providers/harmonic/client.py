@@ -246,12 +246,13 @@ class HarmonicClient:
 
         return [await self.fetch_person(urn) for urn in founder_urns]
 
-    def format_founders_to_md(self, founders: List[Dict]) -> str:
+    def format_founders_to_md(self, founders: List[dict], founders_backgrounds: List[dict]) -> str:
         """
         Format founders' information into a markdown string.
         
         Args:
             founders (List[Dict]): List of founder data dictionaries
+            founders_backgrounds (List[Dict]): List of founder background analysis
             
         Returns:
             str: Formatted markdown string
@@ -261,9 +262,18 @@ class HarmonicClient:
             
         md_output = ""
         
-        for founder in founders:
+        for i, founder in enumerate(founders):
+            background = founders_backgrounds[i] if i < len(founders_backgrounds) else None
+            
             # Basic Info
             md_output += f"## {founder.get('full_name', 'Unknown Founder')}\n\n"
+            
+            # Overall Assessment (if available)
+            if background and background.get('global'):
+                sentiment = background['global']['sentiment'].upper()
+                reason = background['global']['sentiment_reason']
+                md_output += f"**Overall Assessment:** {sentiment}\n"
+                md_output += f"_{reason}_\n\n"
             
             # Current Role
             current_roles = [exp for exp in founder.get('experience', []) 
@@ -271,48 +281,66 @@ class HarmonicClient:
             if current_roles:
                 md_output += f"**Current Role:** {current_roles[0].get('title', 'Unknown')} at {current_roles[0].get('company_name', 'Unknown Company')}\n\n"
             
-            # Education
-            if founder.get('education'):
-                md_output += "### Education\n"
-                # Sort education with a safe key function that handles None
+            # Education with Sentiment
+            if background and background.get('global_education'):
+                edu_sentiment = background['global_education']['sentiment'].upper()
+                edu_reason = background['global_education']['sentiment_reason']
+                md_output += f"### Education ({edu_sentiment})\n"
+                md_output += f"_{edu_reason}_\n\n"
+            
+            if background and background.get('educations'):
                 sorted_education = sorted(
-                    founder['education'],
+                    background['educations'],
                     key=lambda x: x.get('end_date') or '',
                     reverse=True
                 )
                 for edu in sorted_education:
-                    school_name = edu.get('school', {}).get('name')
-                    degree = edu.get('degree')
-                    if school_name and degree:
-                        md_output += f"- {degree} from {school_name}"
-                        if edu.get('field'):
-                            md_output += f" in {edu['field']}"
-                        md_output += "\n"
+                    school = edu.get('school_name', '')
+                    degree = edu.get('degree', '')
+                    field = edu.get('field', '')
+                    sentiment = edu.get('sentiment', '').upper()
+                    
+                    md_output += f"- **{school}** - {degree}"
+                    if field and field != 'None':
+                        md_output += f" in {field}"
+                    if sentiment:
+                        md_output += f" _{sentiment}_"
+                    if edu.get('sentiment_reason'):
+                        md_output += f"\n  - _{edu['sentiment_reason']}_"
+                    md_output += "\n"
                 md_output += "\n"
             
-            # Previous Experience
-            md_output += "### Previous Experience\n"
-            founder_exp = [exp for exp in founder.get('experience', []) 
-                          if not exp.get('is_current_position') and exp.get('company_name')]
-            # Sort experience with a safe key function that handles None
-            sorted_exp = sorted(
-                founder_exp,
-                key=lambda x: x.get('start_date') or '',
-                reverse=True
-            )
-            for exp in sorted_exp[:3]:  # Show only top 3 previous roles
-                md_output += f"- {exp.get('title', 'Unknown Role')} at {exp.get('company_name', 'Unknown Company')}"
-                if exp.get('description'):
-                    # Safely get the first sentence
-                    description = exp['description'].split('.')
-                    if description:
-                        md_output += f"\n  - {description[0]}"
+            # Experience with Sentiment
+            if background and background.get('global_experience'):
+                exp_sentiment = background['global_experience']['sentiment'].upper()
+                exp_reason = background['global_experience']['sentiment_reason']
+                md_output += f"### Professional Experience ({exp_sentiment})\n"
+                md_output += f"_{exp_reason}_\n\n"
+            
+            if background and background.get('experiences'):
+                sorted_exp = sorted(
+                    background['experiences'],
+                    key=lambda x: x.get('start_date') or '',
+                    reverse=True
+                )
+                for exp in sorted_exp:
+                    title = exp.get('title', 'Unknown Role')
+                    company = exp.get('company_name', 'Unknown Company')
+                    sentiment = exp.get('sentiment', '').upper()
+                    
+                    md_output += f"- **{title}** at {company}"
+                    if sentiment:
+                        md_output += f" _{sentiment}_"
+                    if exp.get('description') and exp['description'] != 'None':
+                        md_output += f"\n  - {exp['description']}"
+                    if exp.get('sentiment_reason'):
+                        md_output += f"\n  - _{exp['sentiment_reason']}_"
+                    md_output += "\n"
                 md_output += "\n"
-            md_output += "\n"
             
             # Highlights
             if founder.get('highlights'):
-                md_output += "### Highlights\n"
+                md_output += "### Additional Highlights\n"
                 for highlight in founder['highlights']:
                     if highlight.get('text'):
                         md_output += f"- {highlight['text']}\n"
