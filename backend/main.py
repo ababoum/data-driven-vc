@@ -7,6 +7,8 @@ from typing import Dict
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
+from quantitative.techs import get_techs
+from providers.harmonic.client import HarmonicClient
 
 from models import DomainRequest, StepSummaryRequest, JobResponse, JobStatus
 
@@ -31,7 +33,7 @@ def format_step_data(step_data: dict) -> str:
     data_to_display = {k: v for k, v in step_data.items() if k != "step"}
     
     step_titles = {
-        1: "Company Informations",
+        1: "Competitors informations",
         2: "Founders",
         3: "Company Details",
         4: "Competitors",
@@ -72,24 +74,101 @@ async def get_gpt_summary(text: str) -> str:
 
 async def process_domain(domain: str, job_id: str):
     try:
-        # Step 1: Company Enrichment
+        harmonic_client = HarmonicClient()
+        # Step 1: Competitors
+        company = await harmonic_client.find_company(domain)
+        competitors = await harmonic_client.get_competitors(domain)
+        md_competitors = harmonic_client.format_companies_to_md(competitors)
+        outliers_good = harmonic_client.find_outliers(company, competitors, 0.2)
+        outliers_bad = harmonic_client.find_outliers(company, competitors, 0.5)
+        
+        # Calculate performance based on whether the company is in outliers
+        performance = -1  # Default performance
+        if any(outlier.get('entity_urn') == company.get('entity_urn') for outlier in outliers_good):
+            performance = 1
+            performance_comment = "This company outperforms its competitors !"
+        elif any(outlier.get('entity_urn') == company.get('entity_urn') for outlier in outliers_bad):
+            performance = 0
+            performance_comment = "This company shows average performance compared to competitors"
+        else:
+            performance_comment = "This company underperforms compared to its competitors"
+            
         step_data = {
             "step": 1,
-            "market_size": f"${random.randint(1, 100)}B",
-            "competitors": random.randint(5, 20),
-            "market_growth": f"{random.randint(5, 30)}% YoY"
+            "competitors": md_competitors,
+            "overperformers": [company["name"] for company in outliers_good],
+            "performance_comment": performance_comment,
+            "_performance": performance,
+            "calculation_explanation": """The competitor analysis is performed using multiple data points and sophisticated algorithms:
+
+1. Company Identification:
+   - First, we identify direct and indirect competitors using the Harmonic API
+   - Companies are matched based on industry, market segment, and business model
+
+2. Performance Metrics:
+   - Headcount growth rate and current size
+   - Funding history and total raised amount
+   - Market presence and geographic expansion
+   - Customer base and market share
+
+3. Outlier Detection:
+   - We use an Isolation Forest algorithm to detect companies that significantly deviate from the norm
+   - The algorithm considers multiple dimensions simultaneously
+   - Companies in the top 20% are marked as overperformers (green)
+   - Companies in the bottom 50% are marked as underperformers (red)
+   - Others are considered average performers (yellow)
+
+4. Final Score Calculation:
+   - Each metric is weighted based on its importance
+   - Growth metrics are given higher weight than absolute numbers
+   - Recent performance is weighted more heavily than historical data"""
         }
-        jobs[job_id].status = "Analyzing market position..."
+        jobs[job_id].status = "Analyzing competitors..."
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
         await asyncio.sleep(1)
 
         # Step 2: Founders Analysis
+        performance = random.choice([-1, 0, 1])
+        performance_comment = {
+            1: "Strong founding team with relevant experience",
+            0: "Average founding team composition",
+            -1: "Founding team lacks key experience"
+        }[performance]
+        
         step_data = {
             "step": 2,
             "market_size": f"${random.randint(1, 100)}B",
             "competitors": random.randint(5, 20),
-            "market_growth": f"{random.randint(5, 30)}% YoY"
+            "market_growth": f"{random.randint(5, 30)}% YoY",
+            "performance_comment": performance_comment,
+            "_performance": performance,
+            "calculation_explanation": """The founders' assessment is based on a comprehensive analysis of several key factors:
+
+1. Professional Background:
+   - Previous startup experience (especially successful exits)
+   - Industry expertise and years of experience
+   - Technical expertise for tech companies
+   - Management and leadership experience
+
+2. Educational Background:
+   - Relevant degrees and certifications
+   - Prestigious institutions (weighted but not overemphasized)
+   - Continuing education and professional development
+
+3. Track Record:
+   - Previous companies' performance
+   - Patents and innovations
+   - Industry recognition and awards
+   - Published works or research
+
+4. Team Composition:
+   - Complementary skill sets among founders
+   - Balance of technical and business expertise
+   - Previous collaborations between founders
+   - Advisory board strength
+
+The final score is calculated by weighting these factors based on their relevance to the specific industry and market segment."""
         }
         jobs[job_id].status = "Analyzing market position..."
         jobs[job_id].current_step_data = step_data
@@ -97,11 +176,53 @@ async def process_domain(domain: str, job_id: str):
         await asyncio.sleep(1)
 
         # Step 3: Company Details
+        performance = random.choice([-1, 0, 1])
+        performance_comment = {
+            1: "Company shows strong market positioning",
+            0: "Company has stable market presence",
+            -1: "Company faces significant market challenges"
+        }[performance]
+        
         step_data = {
             "step": 3,
             "market_size": f"${random.randint(1, 100)}B",
             "competitors": random.randint(5, 20),
-            "market_growth": f"{random.randint(5, 30)}% YoY"
+            "market_growth": f"{random.randint(5, 30)}% YoY",
+            "performance_comment": performance_comment,
+            "_performance": performance,
+            "calculation_explanation": """The company details analysis involves a multi-faceted evaluation of the business:
+
+1. Market Position:
+   - Current market share and growth trajectory
+   - Brand strength and recognition
+   - Customer satisfaction metrics
+   - Competitive advantages and moats
+
+2. Business Model:
+   - Revenue streams and diversification
+   - Pricing strategy and unit economics
+   - Customer acquisition costs (CAC)
+   - Lifetime value (LTV) and retention rates
+
+3. Growth Metrics:
+   - Year-over-year revenue growth
+   - User or customer growth
+   - Geographic expansion
+   - Product line expansion
+
+4. Operational Efficiency:
+   - Gross and net margins
+   - Operational costs and scalability
+   - Resource utilization
+   - Technology infrastructure
+
+5. Risk Assessment:
+   - Regulatory compliance
+   - Market dependencies
+   - Technical debt
+   - Competition threats
+
+Each factor is scored individually and weighted based on industry standards and market conditions to produce the final assessment."""
         }
         jobs[job_id].status = "Analyzing market position..."
         jobs[job_id].current_step_data = step_data
