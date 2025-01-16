@@ -14,3 +14,4 @@ openai==1.59.7
 firecrawl-py==1.9.0
 httpx
 scikit-learn==1.4.1.post1
+diskcache
