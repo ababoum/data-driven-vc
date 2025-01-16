@@ -1,3 +1,5 @@
+import asyncio
+
 import json
 import re
 import asyncio
@@ -9,6 +11,7 @@ from providers.harmonic import HarmonicClient
 from services.code_analyzer import CodeQualityAnalyzer
 from services.github_analyzer import GitHubAnalyzer
 from services.website_analyzer import WebsiteAnalyzer
+from cache import memorize
 
 
 class WebsiteAnalysisWorkflow:
@@ -20,6 +23,12 @@ class WebsiteAnalysisWorkflow:
     def __init__(self, input_string: str):
         self.domain = self._extract_domain(input_string)
         self.gh_analyzer = GitHubAnalyzer(self.domain)
+
+    def __str__(self):
+        return f"WebsiteAnalysisWorkflow(domain={self.domain})"
+
+    def __repr__(self):
+        return str(self)
 
     @staticmethod
     def _extract_domain(input_string: str):
@@ -42,6 +51,7 @@ class WebsiteAnalysisWorkflow:
 
         return domain
 
+    @memorize()
     async def generate_competitors_report(self) -> dict:
         harmonic_client = HarmonicClient()
         company = await harmonic_client.find_company(self.domain)
@@ -104,6 +114,7 @@ class WebsiteAnalysisWorkflow:
         }
         return step_data
 
+    @memorize()
     async def generate_github_report(self) -> dict:
         await self.gh_analyzer.run_analysis()
         self.gh_report = self.gh_analyzer.report
@@ -132,6 +143,7 @@ class WebsiteAnalysisWorkflow:
         }
         return step_data
 
+    @memorize()
     async def generate_code_quality_report(self) -> dict:
         try:
             if not self.gh_analyzer.owner:
@@ -301,5 +313,4 @@ async def main():
 if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
-    import asyncio
     asyncio.run(main())

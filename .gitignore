@@ -133,4 +133,8 @@ dmypy.json
 .pyre/
 
 *.DS_Store
+<<<<<<< HEAD
 backend/temp_repo/
+=======
+backend/cache/
+>>>>>>> a5e87e3099ba8f1a191f577cc08f86ad8b535d39
