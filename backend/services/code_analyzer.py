@@ -55,14 +55,17 @@ class CodeQualityAnalyzer:
             for file_name in files:
                 file_path = os.path.join(root, file_name)
                 index += 1
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
-                    if len(lines) > max_lines:
-                        lines = lines[:max_lines]
-                    file_content = "".join(lines)
-                    combined_string += file_content
-                    if len(combined_string) > max_chars or index >= max_files:
-                        return combined_string[:max_chars]
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                        if len(lines) > max_lines:
+                            lines = lines[:max_lines]
+                        file_content = "".join(lines)
+                except Exception:
+                    continue
+                combined_string += file_content
+                if len(combined_string) > max_chars or index >= max_files:
+                    return combined_string[:max_chars]
         return combined_string
 
     def assess_code(self, code_snippet: str) -> str:

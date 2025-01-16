@@ -137,7 +137,8 @@ async def main():
     logging.basicConfig(level=logging.INFO)
     logging.getLogger('httpx').setLevel(logging.WARNING)
     analyzer = GitHubAnalyzer("facebook/react")
-    print(await analyzer.generate_report())
+    await analyzer.run_analysis()
+    print(analyzer.report)
 
 
 if __name__ == '__main__':
