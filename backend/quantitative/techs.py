@@ -42,8 +42,7 @@ def h_get_company(domain_name):
 
 
 def pl_get_technologies(domain_name):
-    url = f"https://predictleads.com/api/v3/companies/{
-        domain_name}/technology_detections?limit=50"
+    url = f"https://predictleads.com/api/v3/companies/{domain_name}/technology_detections?limit=50"
     headers = {
         "X-Api-Key": PL_AUTH_KEY,
         "X-Api-Token": PL_AUTH_TOKEN,

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Container, Typography, Box, CssBaseline, ThemeProvider, createTheme, TextField, Alert, Button, CircularProgress, Paper, IconButton, useMediaQuery } from '@mui/material'
-import StarOutlineIcon from '@mui/icons-material/StarOutline'
+import { Container, Typography, Box, CssBaseline, ThemeProvider, createTheme, TextField, Alert, Button, CircularProgress, Paper, IconButton, useMediaQuery, Collapse, Tooltip } from '@mui/material'
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh'
 import Brightness4Icon from '@mui/icons-material/Brightness4'
 import Brightness7Icon from '@mui/icons-material/Brightness7'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import { analyzeDomain, getJobStatus, summarizeStep } from './services/api'
 import Markdown from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
@@ -31,7 +32,7 @@ interface StepData {
 
 function formatStepDataToMarkdown(data: StepData): string {
   const stepTitles: { [key: number]: string } = {
-    1: "Company Informations",
+    1: "Competitors informations",
     2: "Founders",
     3: "Company Details",
     4: "Competitors",
@@ -46,7 +47,7 @@ function formatStepDataToMarkdown(data: StepData): string {
   let markdown = `## ${stepTitles[data.step] || 'Analysis Step'}\n\n`;
 
   Object.entries(data)
-    .filter(([key]) => key !== 'step')
+    .filter(([key]) => !['step', '_performance'].includes(key))
     .forEach(([key, value]) => {
       const formattedKey = key.split('_').map(word => 
         word.charAt(0).toUpperCase() + word.slice(1)
@@ -68,6 +69,19 @@ function formatStepDataToMarkdown(data: StepData): string {
 
 function App() {
   const [mode, setMode] = useState<'light' | 'dark'>('dark');
+
+  const stepTitles: { [key: number]: string } = {
+    1: "Competitors informations",
+    2: "Founders",
+    3: "Company Details",
+    4: "Competitors",
+    5: "Key People",
+    6: "Market Analysis",
+    7: "Financial Assessment",
+    8: "Market Sentiment",
+    9: "Competitive Analysis",
+    10: "Final Scoring"
+  };
 
   const theme = createTheme({
     palette: {
@@ -101,6 +115,7 @@ function App() {
   const [stepHistory, setStepHistory] = useState<StepData[]>([])
   const [stepSummaries, setStepSummaries] = useState<{ [key: number]: string }>({});
   const [loadingSteps, setLoadingSteps] = useState<Set<number>>(new Set());
+  const [expandedSteps, setExpandedSteps] = useState<Set<string | number>>(new Set());
 
   useEffect(() => {
     let intervalId: number | null = null;
@@ -196,9 +211,36 @@ function App() {
     }
   };
 
+  const toggleStep = (stepId: string | number) => {
+    setExpandedSteps(prev => {
+      const next = new Set(prev);
+      if (next.has(stepId)) {
+        next.delete(stepId);
+      } else {
+        next.add(stepId);
+      }
+      return next;
+    });
+  };
+
   const renderStepData = (data: StepData) => {
     const hasSummary = stepSummaries[data.step] !== undefined;
     const isLoading = loadingSteps.has(data.step);
+    const isExpanded = expandedSteps.has(data.step);
+    const isExplanationExpanded = expandedSteps.has(`${data.step}_explanation`);
+    const stepTitle = stepTitles[data.step] || 'Analysis Step';
+
+    const getBorderColor = (performance: number) => {
+      switch(performance) {
+        case 1:
+          return mode === 'dark' ? '#238636' : '#2da44e';  // Green
+        case -1:
+          return mode === 'dark' ? '#da3633' : '#cf222e';  // Red
+        case 0:
+        default:
+          return mode === 'dark' ? '#d29922' : '#d4a72c';  // Yellow
+      }
+    };
 
     return (
       <Paper 
@@ -211,71 +253,144 @@ function App() {
           transform: 'translateY(0)',
           transition: 'all 0.5s ease',
           backgroundColor: theme.palette.background.paper,
-          border: `1px solid ${mode === 'dark' ? '#30363d' : '#e1e4e8'}`,
+          border: `3px solid ${data._performance !== undefined ? getBorderColor(data._performance) : (mode === 'dark' ? '#30363d' : '#e1e4e8')}`,
           '&:new': {
             opacity: 0,
             transform: 'translateY(20px)',
-          }
+          },
+          position: 'relative'
         }}
       >
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-          {!hasSummary && (
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: isExpanded ? 2 : 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <IconButton 
-              onClick={() => handleSummarize(data)}
-              color="primary"
-              disabled={isLoading}
+              onClick={() => toggleStep(data.step)}
               sx={{ 
-                transition: 'transform 0.2s ease',
-                '&:hover': {
-                  transform: 'scale(1.1)',
-                }
+                transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                transition: 'transform 0.3s ease',
               }}
             >
-              {isLoading ? <CircularProgress size={24} /> : <StarOutlineIcon />}
+              <ExpandMoreIcon />
             </IconButton>
-          )}
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+              <Typography variant="h6" color="text.primary">
+                {stepTitle}
+              </Typography>
+              {data.performance_comment && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  {data.performance_comment}
+                </Typography>
+              )}
+            </Box>
+          </Box>
         </Box>
 
-        <div className="markdown-body max-w-2xl w-full overflow-x-hidden">
-          <style>{`
-            .katex-display {
-              display: block;
-              overflow-x: auto;
-              max-width: 100%;
-              white-space: nowrap;
-            }
-          `}</style>
+        <Collapse in={isExpanded}>
+          <div className="markdown-body max-w-2xl w-full overflow-x-hidden">
+            <style>{`
+              .markdown-body {
+                color: ${theme.palette.text.primary} !important;
+                background-color: transparent !important;
+                text-align: left !important;
+              }
+              .katex-display {
+                display: block;
+                overflow-x: auto;
+                max-width: 100%;
+                white-space: nowrap;
+              }
+            `}</style>
 
-          <Markdown
-            components={{
-              ol: ({ ...props }) => <ol style={{ listStyle: "revert" }} {...props} />,
-              ul: ({ ...props }) => <ul style={{ listStyle: "revert" }} {...props} />,
-            }}
-            remarkPlugins={[remarkMath, remarkGfm]}
-            rehypePlugins={[rehypeKatex]}
-          >
-            {formatStepDataToMarkdown(data)}
-          </Markdown>
-        </div>
-
-        {hasSummary && (
-          <Box sx={{ 
-            mt: 3, 
-            p: 2, 
-            borderRadius: 1,
-            backgroundColor: mode === 'dark' ? 'rgba(88, 166, 255, 0.1)' : 'rgba(25, 118, 210, 0.08)',
-          }}>
-            <Typography variant="h6" gutterBottom color="primary">
-              Summary
-            </Typography>
             <Markdown
+              components={{
+                ol: ({ ...props }) => <ol style={{ listStyle: "revert" }} {...props} />,
+                ul: ({ ...props }) => <ul style={{ listStyle: "revert" }} {...props} />,
+              }}
               remarkPlugins={[remarkMath, remarkGfm]}
               rehypePlugins={[rehypeKatex]}
             >
-              {stepSummaries[data.step]}
+              {formatStepDataToMarkdown(data)}
             </Markdown>
+          </div>
+
+          {hasSummary && (
+            <Box sx={{ 
+              mt: 3, 
+              p: 2, 
+              borderRadius: 1,
+              backgroundColor: mode === 'dark' ? 'rgba(88, 166, 255, 0.1)' : 'rgba(25, 118, 210, 0.08)',
+            }}>
+              <Typography variant="h6" gutterBottom color="primary">
+                Summary
+              </Typography>
+              <Markdown
+                remarkPlugins={[remarkMath, remarkGfm]}
+                rehypePlugins={[rehypeKatex]}
+              >
+                {stepSummaries[data.step]}
+              </Markdown>
+            </Box>
+          )}
+
+          <Box sx={{ mt: 3 }}>
+            <Button
+              onClick={() => toggleStep(data.step + '_explanation')}
+              sx={{
+                color: theme.palette.text.secondary,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                '&:hover': {
+                  backgroundColor: mode === 'dark' ? 'rgba(88, 166, 255, 0.1)' : 'rgba(25, 118, 210, 0.08)',
+                }
+              }}
+            >
+              <ExpandMoreIcon 
+                sx={{ 
+                  transform: isExplanationExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                  transition: 'transform 0.3s ease',
+                }}
+              />
+              <Typography variant="body2">
+                How was this result calculated?
+              </Typography>
+            </Button>
+            <Collapse in={isExplanationExpanded}>
+              <Box sx={{ 
+                mt: 1,
+                p: 2,
+                borderRadius: 1,
+                backgroundColor: mode === 'dark' ? 'rgba(110,118,129,0.1)' : 'rgba(175,184,193,0.1)',
+              }}>
+                <Typography variant="body2" color="text.secondary">
+                  {data.calculation_explanation || "This step's results are calculated by analyzing various data points and comparing them against industry standards and competitor benchmarks."}
+                </Typography>
+              </Box>
+            </Collapse>
+
+            {!hasSummary && (
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                <Tooltip title="Generate AI Summary" placement="left" arrow>
+                  <IconButton 
+                    onClick={() => handleSummarize(data)}
+                    color="primary"
+                    disabled={isLoading}
+                    sx={{ 
+                      backgroundColor: mode === 'dark' ? 'rgba(88, 166, 255, 0.1)' : 'rgba(25, 118, 210, 0.08)',
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        transform: 'scale(1.1)',
+                        backgroundColor: mode === 'dark' ? 'rgba(88, 166, 255, 0.2)' : 'rgba(25, 118, 210, 0.16)',
+                      }
+                    }}
+                  >
+                    {isLoading ? <CircularProgress size={24} /> : <AutoFixHighIcon />}
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            )}
           </Box>
-        )}
+        </Collapse>
       </Paper>
     );
   };
@@ -430,6 +545,74 @@ function App() {
                   <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>
                     {analyzedDomain}
                   </Typography>
+                  {stepHistory.length > 0 && (
+                    <Box sx={{ 
+                      display: 'flex', 
+                      gap: 0.75, 
+                      mt: 2,
+                      flexWrap: 'wrap',
+                      justifyContent: 'center',
+                      alignItems: 'center'
+                    }}>
+                      {stepHistory.map((step) => {
+                        const getTooltipContent = (step: StepData) => {
+                          const title = `${stepTitles[step.step]}\n`;
+                          switch(step.step) {
+                            case 1:
+                              return title + `${step.performance_comment}\nCompetitors Found: ${step.competitors ? 'Yes' : 'No'}`;
+                            case 2:
+                              return title + `${step.performance_comment}\nMarket Size: ${step.market_size}\nGrowth: ${step.market_growth}`;
+                            case 3:
+                              return title + `${step.performance_comment}\nMarket Position: ${step.market_position || 'N/A'}`;
+                            case 7:
+                              return title + `Revenue: ${step.revenue_range}\nBurn Rate: ${step.burn_rate}`;
+                            case 8:
+                              return title + `Team Size: ${step.team_size}\nTech Ratio: ${step.technical_ratio}`;
+                            case 9:
+                              return title + `Stack: ${step.infrastructure}\nLanguages: ${step.main_languages}`;
+                            default:
+                              return title;
+                          }
+                        };
+
+                        const getBadgeColor = (performance: number) => {
+                          switch(performance) {
+                            case 1:
+                              return mode === 'dark' ? '#238636' : '#2da44e';  // Green
+                            case -1:
+                              return mode === 'dark' ? '#da3633' : '#cf222e';  // Red
+                            case 0:
+                            default:
+                              return mode === 'dark' ? '#d29922' : '#d4a72c';  // Yellow
+                          }
+                        };
+
+                        // Only show important steps in overview
+                        if (![1, 2, 3, 7, 8, 9].includes(step.step)) return null;
+
+                        return (
+                          <Tooltip 
+                            key={step.step}
+                            title={getTooltipContent(step)}
+                            arrow
+                            placement="bottom"
+                          >
+                            <Box sx={{ 
+                              width: '12px',
+                              height: '12px',
+                              borderRadius: '2px',
+                              backgroundColor: step._performance !== undefined ? getBadgeColor(step._performance) : (mode === 'dark' ? '#30363d' : '#e1e4e8'),
+                              cursor: 'pointer',
+                              transition: 'transform 0.2s ease',
+                              '&:hover': {
+                                transform: 'scale(1.2)',
+                              }
+                            }} />
+                          </Tooltip>
+                        );
+                      })}
+                    </Box>
+                  )}
                 </Box>
                 {jobStatus && !jobResult && (
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, mb: 4 }}>
@@ -439,7 +622,7 @@ function App() {
                     </Typography>
                   </Box>
                 )}
-                <Box sx={{ maxWidth: '800px', margin: '0 auto' }}>
+                <Box sx={{ maxWidth: '800px', margin: '0 auto', textAlign: 'left' }}>
                   {stepHistory.map((step) => renderStepData(step))}
                 </Box>
                 {jobResult && (
