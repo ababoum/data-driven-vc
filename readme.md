@@ -18,6 +18,19 @@ A full-stack application for data-driven venture capital analysis.
 
 ## Setup Instructions
 
+### API Keys
+
+Obtain API for all the services used in the program:
+* PredictLeads
+* OpenAI
+* Harmonic AI
+* Google Custom Search Engine
+* SimilarWeb
+* Firecrawl
+* Github
+
+And add them to a .env file in the backend folder.
+
 ### Docker Setup
 
 Simply run:
