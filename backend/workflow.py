@@ -1,13 +1,14 @@
+import json
 import re
 from functools import cached_property
 from urllib.parse import urlparse
 
 from openai import AsyncOpenAI
 
-from backend.providers.github import GitHubClient
-from backend.providers.harmonic import HarmonicClient
-from backend.providers.predictleads.client import PredictleadsClient
-from backend.services.website_analyzer import WebsiteAnalyzer
+from providers.github import GitHubClient
+from providers.harmonic import HarmonicClient
+from providers.predictleads.client import PredictleadsClient
+from services.website_analyzer import WebsiteAnalyzer
 
 
 class WebsiteAnalysisWorkflow:
@@ -136,26 +137,43 @@ Make sure to use **clear, non-technical language** suitable for VC associates wh
 
 **Output Format:**  
 - The memo should be formatted with headers, bullet points, and concise paragraphs for readability.
+- Each section should be no longer than 1-2 paragraphs to maintain brevity and clarity.
             """
             prompt += f"\n\n"
             if self.technologies:
-                prompt += f"### Technologies Used:\n{self.technologies}\n\n"
+                # TODO: Improve formatting
+                fmt_technologies = json.dumps(self.technologies, indent=2, default=str)
+                prompt += f"### Technologies Used:\n{fmt_technologies}\n\n"
             if self.gh_repo_data:
-                prompt += f"### GitHub Repository Data:\n{self.gh_repo_data}\n\n"
+                # TODO: Improve formatting
+                fmt_gh_repo = json.dumps(self.gh_repo_data, indent=2, default=str)
+                prompt += f"### GitHub Repository Data:\n{fmt_gh_repo}\n\n"
             if self.gh_user_data:
-                prompt += f"### GitHub User Data:\n{self.gh_user_data}\n\n"
+                # TODO: Improve formatting
+                fmt_gh_user = json.dumps(self.gh_user_data, indent=2, default=str)
+                prompt += f"### GitHub User Data:\n{fmt_gh_user}\n\n"
             if self.employees_experience:
-                prompt += f"### Employees Data:\n{self.employees_experience}\n\n"
+                # TODO: Improve formatting
+                fmt_employees_experience = json.dumps(self.employees_experience, indent=2, default=str)
+                prompt += f"### Employees Data:\n{fmt_employees_experience}\n\n"
             return prompt
+
+        print()
+        print(build_prompt())
+        print()
 
         openai_client = AsyncOpenAI()
         response = await openai_client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "user", "content": build_prompt()}]
+            messages=[{"role": "user", "content": build_prompt()}],
+            stream=True
         )
-        memo = response.choices[0].message.content
+        response_text = ''
+        async for chunk in response:
+            if chunk.choices[0].delta.content:
+                response_text += chunk.choices[0].delta.content
         print('Generated memo')
-        return memo
+        return response_text
 
     async def run_analysis(self):
         print('Starting analysis...')
@@ -172,6 +190,8 @@ Make sure to use **clear, non-technical language** suitable for VC associates wh
         memo = await self.generate_memo()
         print('Analysis complete')
         print(memo)
+        with open('memo.md', 'w+') as f:
+            f.write(memo)
 
 
 async def main():

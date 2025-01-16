@@ -1,32 +1,14 @@
+import asyncio
+import random
+import uuid
+from datetime import datetime
+from typing import Dict
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import asyncio
-import uuid
-import random
-import requests
-from typing import Dict, Optional, List
-from datetime import datetime
 from openai import OpenAI
 
-class DomainRequest(BaseModel):
-    domain: str
-
-class StepSummaryRequest(BaseModel):
-    step_data: dict
-
-class JobResponse(BaseModel):
-    job_id: str
-
-class JobStatus(BaseModel):
-    status: str
-    result: Optional[dict] = None
-    completed: bool = False
-    current_step_data: Optional[dict] = None
-    step_history: List[dict] = []
-
-# Initialize OpenAI client
-client = OpenAI(api_key="")
+from models import DomainRequest, StepSummaryRequest, JobResponse, JobStatus
 
 # In-memory job store
 jobs: Dict[str, JobStatus] = {}
@@ -35,7 +17,7 @@ app = FastAPI(title="Data Driven VC API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -72,16 +54,14 @@ def format_step_data(step_data: dict) -> str:
 async def get_gpt_summary(text: str) -> str:
     """Get summary from ChatGPT."""
     try:
-        prompt = f"Explain this to me in details in .md format by always keeping your answer objective and concise and by assuming I'm a VC who doesn't know anything about tech (Always try to comment on how it could be a pro or a con in the context of a future investment): {text}"
-        
+        prompt = f"Explain this to me in details in markdown format by always keeping your answer objective and concise and by assuming I'm a VC who doesn't know anything about tech (Always try to comment on how it could be a pro or a con in the context of a future investment): {text}"
+        client = OpenAI()
         response = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "user", "content": prompt}
-                ],
-                max_tokens=500,
-                temperature=0.7
+                ]
             )
         )
         
@@ -280,6 +260,7 @@ async def process_domain(domain: str, job_id: str):
         jobs[job_id].status = f"Error: {str(e)}"
         jobs[job_id].completed = True
 
+
 @app.post("/summarize-step")
 async def summarize_step(request: StepSummaryRequest):
     # Format the step data into readable text
@@ -290,9 +271,11 @@ async def summarize_step(request: StepSummaryRequest):
     
     return {"summary": summary}
 
+
 @app.get("/")
 async def root():
     return {"message": "Welcome to Data Driven VC API"}
+
 
 @app.post("/analyze-domain", response_model=JobResponse)
 async def analyze_domain(request: DomainRequest):
@@ -304,8 +287,9 @@ async def analyze_domain(request: DomainRequest):
     
     return JobResponse(job_id=job_id)
 
+
 @app.get("/job/{job_id}", response_model=JobStatus)
 async def get_job_status(job_id: str):
     if job_id not in jobs:
         raise HTTPException(status_code=404, detail="Job not found")
-    return jobs[job_id] 
+    return jobs[job_id]
