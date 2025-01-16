@@ -1,36 +1,36 @@
 import json
 import re
-from functools import cached_property
 from urllib.parse import urlparse
 
 from openai import AsyncOpenAI
 
-from providers.github import GitHubClient
 from providers.harmonic import HarmonicClient
-from providers.predictleads.client import PredictleadsClient
+from services.code_analyzer import CodeQualityAnalyzer
+from services.github_analyzer import GitHubAnalyzer
 from services.website_analyzer import WebsiteAnalyzer
 
 
 class WebsiteAnalysisWorkflow:
-    gh_repo_name: str | None = None
-    gh_repo_data: dict | None = None
-    gh_user_data: dict | None = None
+    gh_report: str | None = None
+    code_report: str | None = None
     employees_experience: list[dict] | None = None
     technologies: list[dict] | None = None
 
-    def __init__(self, input_string):
-        self.input_string = input_string
+    def __init__(self, input_string: str):
+        self.domain = self._extract_domain(input_string)
+        self.gh_analyzer = GitHubAnalyzer(self.domain)
 
-    def _extract_domain(self):
+    @staticmethod
+    def _extract_domain(input_string: str):
         # Check if the input is a valid URL
         try:
-            parsed_url = urlparse(self.input_string)
+            parsed_url = urlparse(input_string)
             domain = parsed_url.netloc
             if not domain:
                 domain = parsed_url.path
             domain = domain.lower().lstrip('www.')
         except Exception as e:
-            raise ValueError(f"Invalid input: {self.input_string}") from e
+            raise ValueError(f"Invalid input: {input_string}") from e
 
         # Validate domain using regex
         domain_pattern = re.compile(
@@ -41,27 +41,18 @@ class WebsiteAnalysisWorkflow:
 
         return domain
 
-    @cached_property
-    def domain(self) -> str:
-        return self._extract_domain()
+    async def generate_github_report(self) -> tuple[str, int]:
+        await self.gh_analyzer.run_analysis()
+        self.gh_report = self.gh_analyzer.report
+        return self.gh_analyzer.report, self.gh_analyzer.color
 
-    async def find_github(self):
-        print('Finding GitHub repo...')
-        self.gh_repo_name = await PredictleadsClient().fetch_github(self.domain)
-        if self.gh_repo_name:
-            print(f'Found GitHub repo: {self.gh_repo_name}')
-        else:
-            print('No GitHub repo found')
-
-    async def fetch_github_data(self):
-        if not self.gh_repo_name:
-            return
-        print('Fetching GitHub data...')
-        owner, repo = self.gh_repo_name.split('/')
-        client = GitHubClient()
-        self.gh_repo_data = await client.fetch_repo(owner, repo)
-        self.gh_user_data = await client.fetch_user(owner)
-        print('Fetched GitHub data')
+    async def generate_code_quality_report(self) -> tuple[str, int]:
+        if not self.gh_analyzer.owner:
+            return 'No GitHub repository found.', -1
+        analyzer = CodeQualityAnalyzer(self.gh_analyzer.owner, self.gh_analyzer.repo)
+        analyzer.run_analysis()
+        self.code_report = analyzer.report
+        return analyzer.report, analyzer._color
 
     async def fetch_employees_experience(self):
         print('Fetching employees experience...')
@@ -144,14 +135,10 @@ Make sure to use **clear, non-technical language** suitable for VC associates wh
                 # TODO: Improve formatting
                 fmt_technologies = json.dumps(self.technologies, indent=2, default=str)
                 prompt += f"### Technologies Used:\n{fmt_technologies}\n\n"
-            if self.gh_repo_data:
-                # TODO: Improve formatting
-                fmt_gh_repo = json.dumps(self.gh_repo_data, indent=2, default=str)
-                prompt += f"### GitHub Repository Data:\n{fmt_gh_repo}\n\n"
-            if self.gh_user_data:
-                # TODO: Improve formatting
-                fmt_gh_user = json.dumps(self.gh_user_data, indent=2, default=str)
-                prompt += f"### GitHub User Data:\n{fmt_gh_user}\n\n"
+            if self.gh_report:
+                prompt += f"### GitHub Report:\n{self.gh_report}\n\n"
+            if self.code_report:
+                prompt += f"### GitHub User Data:\n{self.code_report}\n\n"
             if self.employees_experience:
                 # TODO: Improve formatting
                 fmt_employees_experience = json.dumps(self.employees_experience, indent=2, default=str)
@@ -178,8 +165,6 @@ Make sure to use **clear, non-technical language** suitable for VC associates wh
     async def run_analysis(self):
         print('Starting analysis...')
         domain = self.domain
-        # Find GitHub
-        await self.find_github()
         # Fetch GitHub data
         await self.fetch_github_data()
         # Fetch Harmonic data

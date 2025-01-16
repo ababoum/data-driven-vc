@@ -6,11 +6,11 @@ from typing import Dict
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from openai import OpenAI
-from quantitative.techs import get_techs
+from openai import AsyncOpenAI
 from providers.harmonic.client import HarmonicClient
 
 from models import DomainRequest, StepSummaryRequest, JobResponse, JobStatus
+from workflow import WebsiteAnalysisWorkflow
 
 # In-memory job store
 jobs: Dict[str, JobStatus] = {}
@@ -57,15 +57,13 @@ async def get_gpt_summary(text: str) -> str:
     """Get summary from ChatGPT."""
     try:
         prompt = f"Explain this to me in details in markdown format by always keeping your answer objective and concise and by assuming I'm a VC who doesn't know anything about tech (Always try to comment on how it could be a pro or a con in the context of a future investment): {text}"
-        client = OpenAI()
-        response = await asyncio.to_thread(
-            lambda: client.chat.completions.create(
+        client = AsyncOpenAI()
+        response = await client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
                     {"role": "user", "content": prompt}
                 ]
             )
-        )
         
         return response.choices[0].message.content
     except Exception as e:
@@ -128,103 +126,53 @@ async def process_domain(domain: str, job_id: str):
         jobs[job_id].step_history.append(step_data)
         await asyncio.sleep(1)
 
-        # Step 2: Founders Analysis
-        performance = random.choice([-1, 0, 1])
+        # Step 2: GitHub Analysis
+        workflow = WebsiteAnalysisWorkflow(domain)
+
+        jobs[job_id].status = "Analyzing GitHub..."
+        report, performance = await workflow.generate_github_report()
         performance_comment = {
-            1: "Strong founding team with relevant experience",
-            0: "Average founding team composition",
-            -1: "Founding team lacks key experience"
+            1: "Strong repository activity and community engagement",
+            0: "Average repository performance and community engagement",
+            -1: "Weak repository activity and community engagement"
         }[performance]
         
         step_data = {
             "step": 2,
-            "market_size": f"${random.randint(1, 100)}B",
-            "competitors": random.randint(5, 20),
-            "market_growth": f"{random.randint(5, 30)}% YoY",
-            "performance_comment": performance_comment,
+            "title": "GitHub Metrics Analysis",
+            "Metrics": report,
             "_performance": performance,
-            "calculation_explanation": """The founders' assessment is based on a comprehensive analysis of several key factors:
-
-1. Professional Background:
-   - Previous startup experience (especially successful exits)
-   - Industry expertise and years of experience
-   - Technical expertise for tech companies
-   - Management and leadership experience
-
-2. Educational Background:
-   - Relevant degrees and certifications
-   - Prestigious institutions (weighted but not overemphasized)
-   - Continuing education and professional development
-
-3. Track Record:
-   - Previous companies' performance
-   - Patents and innovations
-   - Industry recognition and awards
-   - Published works or research
-
-4. Team Composition:
-   - Complementary skill sets among founders
-   - Balance of technical and business expertise
-   - Previous collaborations between founders
-   - Advisory board strength
-
-The final score is calculated by weighting these factors based on their relevance to the specific industry and market segment."""
+            "performance_comment": performance_comment,
+            "calculation_explanation": """
+1. **Stars Growth Rate**: Reflects repository **popularity** over time.  
+2. **Forks Count**: Shows **external interest** in adapting or contributing to the code.  
+3. **Commit Frequency**: Indicates **active development** and maintenance.  
+4. **Contributors Count**: Highlights **team/community engagement**.  
+5. **Issue Resolution Time**: Measures **responsiveness** to bugs and requests.  
+            """
         }
-        jobs[job_id].status = "Analyzing market position..."
+
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
         await asyncio.sleep(1)
 
-        # Step 3: Company Details
-        performance = random.choice([-1, 0, 1])
+        # Step 3: Code Quality
+        jobs[job_id].status = "Analyzing code quality..."
+        report, performance = await workflow.generate_code_quality_report()
         performance_comment = {
-            1: "Company shows strong market positioning",
-            0: "Company has stable market presence",
-            -1: "Company faces significant market challenges"
+            1: "Great code quality and documentation",
+            0: "Average code quality and documentation",
+            -1: "Weak code quality and documentation"
         }[performance]
-        
+
         step_data = {
             "step": 3,
-            "market_size": f"${random.randint(1, 100)}B",
-            "competitors": random.randint(5, 20),
-            "market_growth": f"{random.randint(5, 30)}% YoY",
-            "performance_comment": performance_comment,
+            "title": "Code Quality Analysis",
+            "Report": report,
             "_performance": performance,
-            "calculation_explanation": """The company details analysis involves a multi-faceted evaluation of the business:
-
-1. Market Position:
-   - Current market share and growth trajectory
-   - Brand strength and recognition
-   - Customer satisfaction metrics
-   - Competitive advantages and moats
-
-2. Business Model:
-   - Revenue streams and diversification
-   - Pricing strategy and unit economics
-   - Customer acquisition costs (CAC)
-   - Lifetime value (LTV) and retention rates
-
-3. Growth Metrics:
-   - Year-over-year revenue growth
-   - User or customer growth
-   - Geographic expansion
-   - Product line expansion
-
-4. Operational Efficiency:
-   - Gross and net margins
-   - Operational costs and scalability
-   - Resource utilization
-   - Technology infrastructure
-
-5. Risk Assessment:
-   - Regulatory compliance
-   - Market dependencies
-   - Technical debt
-   - Competition threats
-
-Each factor is scored individually and weighted based on industry standards and market conditions to produce the final assessment."""
+            "performance_comment": performance_comment,
         }
-        jobs[job_id].status = "Analyzing market position..."
+
         jobs[job_id].current_step_data = step_data
         jobs[job_id].step_history.append(step_data)
         await asyncio.sleep(1)
