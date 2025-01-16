@@ -71,6 +71,8 @@ async def process_domain(domain: str, job_id: str):
         jobs[job_id].step_history.append(step_data)
 
         # Step 4: Founder Analysis
+        jobs[job_id].status = "Analyzing founders..."
+
         harmonic_client = HarmonicClient()
         company = await harmonic_client.find_company(domain)
         founders = await harmonic_client.get_founders_from_company(company)
@@ -142,7 +144,9 @@ async def process_domain(domain: str, job_id: str):
      * Average Performance (Yellow): Average score between -0.25 and 0.5
      * Concerning Performance (Red): Average score < -0.25"""
         }
-        jobs[job_id].status = "Analyzing founders..."
+
+        jobs[job_id].current_step_data = step_data
+        jobs[job_id].step_history.append(step_data)
 
         # Step 5: Key People
         step_data = {
