@@ -7,6 +7,46 @@ openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 def wrap_triple_quotes(text: str):
     return f"```\n{text}\n```"
 
+def extract_relevant_pages_url(webpage_urls: list[str]):
+    formatted_urls = '\n'.join([f"- {url}" for url in webpage_urls])
+    openai_client = OpenAI(api_key=openai_api_key)
+    messages = [
+        {"role": "developer", "content": "You are a VC analyst, your role is to investigate and rationalize an investment decision on a company. You will be feeded with a list of URLs of all the pages of the company website. Your task is to identify the most relevant url to extract information from. Knowing that those relevant urls will be used to extract information about the company, its founders, its team members, its product, its business and its underlying technologies."},
+        {"role": "user", "content": f"""
+{formatted_urls}
+"""}
+    ]
+
+    response = openai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "data",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "urls": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+
+    completion = response.choices[0].message.content
+    try:
+        parsed_completion = json.loads(completion)
+        return parsed_completion.get('urls')
+    except Exception as e:
+        print(e)
+
+
 def generate_company_tech_summary(company = None, webpages: dict = None, domain: str = None, main_techs: list = None, specific_techs: list = None):
     if not domain:
         raise Exception("Please provide a domain")
